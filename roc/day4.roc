@@ -9,20 +9,12 @@ part1 = \inp ->
     |> List.map pointValue
     |> List.sum
 
-# powm1 m 0 = 0
-# powm1 m (n + 1) = m ^ n
-powm1 = \m, n ->
-    when n is
-        0 -> 0
-        _ -> Num.powInt m (n - 1)
-
-matchingNumbers = \{ winners, mine } ->
-    mine
-    |> Set.fromList
-    |> Set.intersection (Set.fromList winners)
-    |> Set.len
-
-pointValue = \card -> powm1 2 (matchingNumbers card)
+part2 : Str -> U64
+part2 = \inp ->
+    parseCards inp
+    |> List.map matchingNumbers
+    |> countCopies
+    |> List.sum
 
 parseCards = \inp ->
     inp
@@ -48,12 +40,18 @@ parseNums = \nums ->
     |> List.mapTry Str.toU64
     |> orCrash
 
-part2 : Str -> U64
-part2 = \inp ->
-    parseCards inp
-    |> List.map matchingNumbers
-    |> countCopies
-    |> List.sum
+matchingNumbers = \{ winners, mine } ->
+    mine
+    |> Set.fromList
+    |> Set.intersection (Set.fromList winners)
+    |> Set.len
+
+pointValue = \card -> powm1 2 (matchingNumbers card)
+
+powm1 = \m, n ->
+    when n is
+        0 -> 0
+        _ -> Num.powInt m (n - 1)
 
 countCopies = \cards ->
     List.walkWithIndex cards (List.repeat 1 (List.len cards)) distributeCopies
