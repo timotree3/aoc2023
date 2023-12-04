@@ -35,7 +35,6 @@ parseCard = \line ->
 parseNums = \nums ->
     nums
     |> Str.split " "
-    |> List.map Str.trim
     |> List.dropIf Str.isEmpty
     |> List.mapTry Str.toU64
     |> orCrash
