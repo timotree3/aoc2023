@@ -21,7 +21,7 @@ parseLine1 = \line ->
 
 asciiToDigit : U8 -> Result U64 [NotDigit]
 asciiToDigit = \b ->
-    when Num.subChecked b 48 is # 48 = b'0'
+    when Num.subChecked b '0' is
         Ok d if d < 10 -> Ok (Num.intCast d)
         _ -> Err NotDigit
 
