@@ -4,15 +4,16 @@ app "day2"
     provides [main] to pf
 
 Grid : List (List GridCell)
-GridCell : [Digit, Star {count: U8, power: U64}, Symbol, Dot]
-Numeral : {x: Nat, y: Nat, len: Nat, val: U64}
+GridCell : [Digit, Star { count : U8, power : U64 }, Symbol, Dot]
+Numeral : { x : Nat, y : Nat, len : Nat, val : U64 }
 
 parseNums : Str -> List Numeral
 parseNums = \inp -> inp
     |> Str.trim
     |> Str.split "\n"
-    |> List.mapWithIndex (\line, y -> # ask about contrained record types
-        List.map (extractNums line) \{x, len, val} -> {x, y, len, val})
+    |> List.mapWithIndex
+        (\line, y -> # ask about contrained record types
+            List.map (extractNums line) \{ x, len, val } -> { x, y, len, val })
     |> List.join
 
 parseGrid : Str -> Grid
@@ -23,10 +24,10 @@ parseGrid = \inp -> inp
         |> Str.toUtf8
         |> List.map \byte ->
             when byte is
-            '.' -> Dot
-            '*' -> Star {count: 0, power: 1}
-            b if '0' <= b && b <= '9' -> Digit
-            _ -> Symbol
+                '.' -> Dot
+                '*' -> Star { count: 0, power: 1 }
+                b if '0' <= b && b <= '9' -> Digit
+                _ -> Symbol
 
 prefixSum : List (Num a) -> List (Num a)
 prefixSum = \l ->
@@ -41,6 +42,7 @@ groupBy = \l, pred ->
             Ok prev if pred prev elem ->
                 List.update groups (List.len groups - 1) \group ->
                     List.append group elem
+
             _ -> List.append groups [elem]
 
 groupByKey = \l, key ->
@@ -54,15 +56,17 @@ walkMap = \l, state, f ->
         (List.append mappedSoFar mapped, newState)
 
 extractNums = \line ->
-    groups = line
+    groups =
+        line
         |> Str.toUtf8
         |> groupByKey isAsciiDigit
-    offsets = groups
+    offsets =
+        groups
         |> List.map List.len
         |> prefixSum
     results = List.map2 groups offsets \group, offset ->
         val <- fromAsciiDigits group |> Result.map
-        {x: offset, len: List.len group, val}
+        { x: offset, len: List.len group, val }
     List.keepOks results \r -> r
 
 fromAsciiDigits = \digits ->
@@ -78,13 +82,16 @@ expect
 
 expect
     nums = extractNums "467..114.."
-    nums == [
+    nums
+    == [
         { x: 0, len: 3, val: 467 },
-        { x: 5, len: 3, val: 114 }]
+        { x: 5, len: 3, val: 114 },
+    ]
 
 expect
     nums = parseNums example
-    nums == [
+    nums
+    == [
         { x: 0, y: 0, len: 3, val: 467 },
         { x: 5, y: 0, len: 3, val: 114 },
         { x: 2, y: 2, len: 2, val: 35 },
@@ -108,8 +115,8 @@ neighbors = \x, y -> [
     (x + 1, y + 1),
 ]
 
-numeralNeighbors = \{x: left, y, len} ->
-    List.range {start: At left, end: Length len}
+numeralNeighbors = \{ x: left, y, len } ->
+    List.range { start: At left, end: Length len }
     |> List.joinMap \x -> neighbors x y
 
 symbolAt = \grid, x, y ->
@@ -120,21 +127,22 @@ symbolAt = \grid, x, y ->
         _ -> Bool.false
 
 numHasSymbol = \grid -> \num ->
-    numeralNeighbors num |> List.any \(x, y) -> symbolAt grid x y
+        numeralNeighbors num |> List.any \(x, y) -> symbolAt grid x y
 
 part1 : Str -> U64
 part1 = \inp ->
     grid = parseGrid inp
     parseNums inp
-        |> List.keepIf (numHasSymbol grid)
-        |> List.map \{val} -> val
-        |> List.sum
+    |> List.keepIf (numHasSymbol grid)
+    |> List.map \{ val } -> val
+    |> List.sum
 
 exampleGrid = parseGrid example
 
 expect
     nums = parseNums example |> List.keepIf (numHasSymbol exampleGrid)
-    nums == [
+    nums
+    == [
         { x: 0, y: 0, len: 3, val: 467 },
         { x: 2, y: 2, len: 2, val: 35 },
         { x: 6, y: 2, len: 3, val: 633 },
@@ -149,16 +157,16 @@ expect !(isAsciiDigit ('9' + 1))
 expect !(isAsciiDigit ('0' - 1))
 
 expect (numHasSymbol exampleGrid) { x: 0, y: 0, len: 3, val: 467 }
-expect (symbolAt exampleGrid 3 1)
+expect symbolAt exampleGrid 3 1
 
 touchStar = \grid, x, y, val ->
     List.update grid y \row ->
         List.update row x \cell ->
             when cell is
-                Star {count, power} -> Star {count: count + 1, power: power * val}
+                Star { count, power } -> Star { count: count + 1, power: power * val }
                 _ -> cell
 
-touchStars = \grid, nums -> 
+touchStars = \grid, nums ->
     List.walk nums grid \oldGrid, num -> numeralNeighbors num
         |> Set.fromList
         |> Set.walk oldGrid \oldGrid2, (x, y) ->
@@ -170,34 +178,35 @@ part2 = \inp -> parseGrid inp
     |> List.join
     |> List.keepOks \cell ->
         when cell is
-            Star {count: 2, power} -> Ok power
+            Star { count: 2, power } -> Ok power
             _ -> Err {}
     |> List.sum
 
 expect
-    stars = parseGrid example
+    stars =
+        parseGrid example
         |> touchStars (parseNums example)
         |> List.join
         |> List.keepIf \cell ->
             when cell is
                 Star _ -> Bool.true
                 _ -> Bool.false
-    stars == [Star {count: 2, power: 467 * 35}, Star {count: 1, power: 617}, Star {count: 2, power: 755 * 598}]
+    stars == [Star { count: 2, power: 467 * 35 }, Star { count: 1, power: 617 }, Star { count: 2, power: 755 * 598 }]
 
 example : Str
 example =
-"""
-467..114..
-...*......
-..35..633.
-......#...
-617*......
-.....+.58.
-..592.....
-.....#755.
-...$.*....
-.664.598..
-"""
+    """
+    467..114..
+    ...*......
+    ..35..633.
+    ......#...
+    617*......
+    .....+.58.
+    ..592.....
+    .....#755.
+    ...$.*....
+    .664.598..
+    """
 
 expect
     answer = part1 example
@@ -216,7 +225,7 @@ expect
 #             else
 #                 ("", old.x)
 #         dots = Str.repeat "." (numeral.x - cursorX)
-        
+
 #         {x: numeral.x + numeral.len, y: numeral.y, acc: "\(old.acc)\(newlines)\(dots)\(Num.toStr numeral.val)"}
 #     acc
 
@@ -227,10 +236,9 @@ expect
 #         |> List.keepIf (numHasSymbol grid)
 #         |> reprint
 #         |> Stdout.line
-    
 
 main : Task {} I32
-main = 
+main =
     Stdout.line
         """
         Part 1: \(Num.toStr (part1 input))
