@@ -42,13 +42,77 @@ parseLinePt2 = \line ->
     |> Str.toU64
     |> orCrash
 
-numWaysToBeat : Record -> U64
-numWaysToBeat = \{ time, distance: recordDistance } ->
+intervalPartitionPoint : { start : Int a, end : Int a }, (Int a -> [Left, Right]) -> Int a
+intervalPartitionPoint = \{ start, end }, cmp ->
+    expect
+        start <= end
+
+    if start >= end then
+        start
+    else
+        # [2, 8)
+        #      ^ end
+        #  ^ start
+        # midpoint = 5
+        midpoint = Num.divTrunc (start + end) 2
+        when cmp midpoint is
+            Right ->
+                # 5 belongs Right; recurse with [2, 5)
+                intervalPartitionPoint { start, end: midpoint } cmp
+
+            Left ->
+                # 5 belongs Left; recurse with (5, 8)
+                intervalPartitionPoint { start: midpoint + 1, end } cmp
+
+numWaysToBeatNaive : Record -> U64
+numWaysToBeatNaive = \{ time, distance: recordDistance } ->
     List.range { start: At 0, end: At time }
-    |> List.map \buttonDuration -> (time - buttonDuration) * buttonDuration
+    |> List.map \button -> score { time, button }
     |> List.keepIf \dist -> dist > recordDistance
     |> List.len
     |> Num.toU64
+
+score = \{ time, button } -> (time - button) * button
+
+# Works in O(log time)
+numWaysToBeat : Record -> U64
+numWaysToBeat = \{ time, distance: recordDistance } ->
+    leastWinningButton =
+        intervalPartitionPoint { start: 0, end: Num.divTrunc time 2 + 1 } \button ->
+            if score { time, button } > recordDistance then Right else Left
+
+    # All button numbers <= time//2 are losers. Since the problem is symmetric, there are therefore no winners.
+    if leastWinningButton > Num.divTrunc time 2 then
+        0
+    else
+        expect
+            score { time, button: leastWinningButton } > recordDistance
+
+        expect
+            score { time, button: leastWinningButton - 1 } <= recordDistance
+
+        expect
+            leastWinningButton <= Num.divTrunc time 2
+
+        greatestWinningButton = time - leastWinningButton
+        expect score { time, button: greatestWinningButton } > recordDistance
+        expect score { time, button: greatestWinningButton + 1 } <= recordDistance
+
+        greatestWinningButton - leastWinningButton + 1
+
+testRecords =
+    List.range { start: At 0, end: Length 10 }
+    |> List.joinMap \t ->
+        List.range { start: At 0, end: At (Num.divTrunc (t * t) 4) }
+        |> List.map \r -> { time: t, distance: r }
+
+expect
+    testRecords
+    |> List.all \record ->
+        naive = numWaysToBeatNaive record
+        opt = numWaysToBeat record
+        expect naive == opt
+        naive == opt
 
 solve : Input -> U64
 solve = \records ->
