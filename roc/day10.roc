@@ -122,25 +122,22 @@ hasSouthEdge = \tile ->
         NE | NW | EW | Ground -> Bool.false
         Animal -> crash "expected animal to be replaced with pipe"
 
-rowInnies : List Tile, (Nat -> Bool) -> Set Nat
-rowInnies = \row, inPath ->
-    (finalInnies, _) = List.walkWithIndex row (Set.empty {}, 0) \(innies, numSouthEdges), tile, x ->
-        newInnies =
+rowCount : List Tile, (Nat -> Bool) -> Nat
+rowCount = \row, inPath ->
+    (total, _) = List.walkWithIndex row (0, 0) \(count, numSouthEdges), tile, x ->
+        newCount =
             if numSouthEdges % 2 == 1 && !(inPath x) then
-                Set.insert innies x
+                count + 1
             else
-                innies
+                count
         newNumSouthEdges =
             if hasSouthEdge tile && inPath x then
                 numSouthEdges + 1
             else
                 numSouthEdges
 
-        (newInnies, newNumSouthEdges)
-    dbg
-        finalInnies
-
-    finalInnies
+        (newCount, newNumSouthEdges)
+    total
 
 part2 : Input -> Nat
 part2 = \grid ->
@@ -165,10 +162,8 @@ part2 = \grid ->
     pathSet = Set.fromList (path |> List.map .0)
     newGrid
     |> List.mapWithIndex \row, y ->
-        rowInnies row \x -> Set.contains pathSet (x, y)
-        |> Set.map \x -> (x, y)
-    |> List.walk (Set.empty {}) Set.union
-    |> Set.len
+        rowCount row \x -> Set.contains pathSet (x, y)
+    |> List.sum
 
 example1 =
     """
