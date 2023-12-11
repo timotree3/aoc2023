@@ -174,7 +174,7 @@ part2 = \grid ->
             [(_, E), .., (_, N)] -> SE
             [(_, E), .., (_, E)] -> EW
             [(_, E), .., (_, S)] -> NE
-            _ -> crash "expected path to leave and arrive at animal from direction directions"
+            _ -> crash "expected path to leave and arrive at animal from different directions"
 
     newGrid = set grid animalPos animalAsPipe
 
