@@ -116,37 +116,27 @@ part1 = \grid ->
     # answer == 2
     List.len path // 2
 
+hasSouthEdge = \tile ->
+    when tile is
+        NS | SE | SW -> Bool.true
+        NE | NW | EW | Ground -> Bool.false
+        Animal -> crash "expected animal to be replaced with pipe"
+
 rowInnies : List Tile, (Nat -> Bool) -> Set Nat
 rowInnies = \row, inPath ->
-    (finalInnies, endState) = List.walkWithIndex row (Set.empty {}, Outside) \(innies, state), tile, x ->
+    (finalInnies, _) = List.walkWithIndex row (Set.empty {}, 0) \(innies, numSouthEdges), tile, x ->
         newInnies =
-            when state is
-                Inside if !(inPath x) -> Set.insert innies x
-                _ -> innies
-        newState =
-            if inPath x then
-                when (tile, state) is
-                    (NS, Outside) -> Inside
-                    (NS, Inside) -> Outside
-                    (NE, Outside) -> BelowInside
-                    (NE, Inside) -> AboveInside
-                    (SE, Outside) -> AboveInside
-                    (SE, Inside) -> BelowInside
-                    (NW, AboveInside) -> Inside
-                    (NW, BelowInside) -> Outside
-                    (SW, BelowInside) -> Inside
-                    (SW, AboveInside) -> Outside
-                    (EW, BelowInside) -> BelowInside
-                    (EW, AboveInside) -> AboveInside
-                    (Ground, Inside) -> Inside
-                    (Ground, Outside) -> Outside
-                    _ -> crash "unexpected sequence of tiles in path in row"
+            if numSouthEdges % 2 == 1 && !(inPath x) then
+                Set.insert innies x
             else
-                state
+                innies
+        newNumSouthEdges =
+            if hasSouthEdge tile && inPath x then
+                numSouthEdges + 1
+            else
+                numSouthEdges
 
-        (newInnies, newState)
-    expect
-        endState == Outside
+        (newInnies, newNumSouthEdges)
     dbg
         finalInnies
 
