@@ -433,6 +433,55 @@ expect
     answer = part2 (parse example4)
     answer == 5
 
+example5 =
+    """
+    L
+
+    11A = (11B, XXX)
+    11B = (11C, XXX)
+    11C = (11Z, XXX)
+    11Z = (11D, XXX)
+    11D = (12Z, XXX)
+    12Z = (11D, XXX)
+    22A = (22Z, XXX)
+    22Z = (22B, XXX)
+    22B = (22Z, XXX)
+    XXX = (XXX, XXX)
+    """
+
+expect
+    answer = part2 (parse example5)
+    answer == 3
+
+example6 =
+    """
+    L
+
+    11A = (11B, XXX)
+    11B = (11C, XXX)
+    11C = (11Z, XXX)
+    11Z = (11D, XXX)
+    11D = (12Z, XXX)
+    12Z = (11Z, XXX)
+    22A = (22B, XXX)
+    22B = (22Z, XXX)
+    22Z = (22A, XXX)
+    33A = (33B, XXX)
+    33B = (33C, XXX)
+    33C = (33D, XXX)
+    33D = (33E, XXX)
+    33E = (33Z, XXX)
+    33Z = (33F, XXX)
+    33F = (3GZ, XXX)
+    3GZ = (33H, XXX)
+    33H = (33D, XXX)
+    XXX = (XXX, XXX)
+    """
+
+expect
+    answer = part2 (parse example6)
+    answer == 5
+
 main : Task {} I32
 main =
     {} <- Stdout.line "Part 1: \(Num.toStr (part1 (parse input)))" |> Task.await
