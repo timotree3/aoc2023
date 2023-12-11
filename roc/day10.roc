@@ -152,24 +152,6 @@ rowInnies = \row, inPath ->
 
     finalInnies
 
-columns : List (List elem) -> List (List elem)
-columns = \grid -> columnsHelper grid [] 0
-columnsHelper = \grid, cols, x ->
-    when List.mapTry grid \row -> List.get row x is
-        Ok col -> columnsHelper grid (List.append cols col) (x + 1)
-        Err OutOfBounds -> cols
-
-expect
-    columns [
-        [1, 2],
-        [3, 4],
-        [5, 6],
-    ]
-    == [
-        [1, 3, 5],
-        [2, 4, 6],
-    ]
-
 part2 : Input -> Nat
 part2 = \grid ->
     animalPos = find grid Animal |> orCrash
