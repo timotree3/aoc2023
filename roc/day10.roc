@@ -152,18 +152,12 @@ part2 = \grid ->
 
     animalAsPipe =
         when path is
-            [(_, S), .., (_, W)] -> SE
-            [(_, S), .., (_, S)] -> NS
-            [(_, S), .., (_, E)] -> SW
-            [(_, N), .., (_, W)] -> NE
-            [(_, N), .., (_, N)] -> NS
-            [(_, N), .., (_, E)] -> NW
-            [(_, W), .., (_, N)] -> SW
-            [(_, W), .., (_, W)] -> EW
-            [(_, W), .., (_, S)] -> NW
-            [(_, E), .., (_, N)] -> SE
-            [(_, E), .., (_, E)] -> EW
-            [(_, E), .., (_, S)] -> NE
+            [(_, N), .., (_, N)] | [(_, S), .., (_, S)] -> NS
+            [(_, E), .., (_, E)] | [(_, W), .., (_, W)] -> EW
+            [(_, N), .., (_, W)] | [(_, E), .., (_, S)] -> NE
+            [(_, N), .., (_, E)] | [(_, W), .., (_, S)] -> NW
+            [(_, S), .., (_, E)] | [(_, W), .., (_, N)] -> SW
+            [(_, S), .., (_, W)] | [(_, E), .., (_, N)] -> SE
             _ -> crash "expected path to leave and arrive at animal from different directions"
 
     newGrid = set grid animalPos animalAsPipe
