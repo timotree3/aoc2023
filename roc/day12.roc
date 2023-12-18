@@ -323,7 +323,7 @@ placeRunsInUnknowns = \runs, numUnknowns ->
     total = List.sum runs
     ret =
         if total <= numUnknowns + 1 then
-            choose (numUnknowns + 1 - total) (List.len runs)
+            Num.toNat (choose (Num.toU128 (numUnknowns + 1 - total)) (Num.toU128 (List.len runs)))
         else
             0
     # choiceResult = { runs, numUnknowns, ret }
@@ -333,7 +333,7 @@ placeRunsInUnknowns = \runs, numUnknowns ->
     ret
 
 ## n choose m = n!/m!(n-m)!
-choose : Nat, Nat -> Nat
+choose : U128, U128 -> U128
 choose = \n, m ->
     if n < m then
         0
@@ -363,13 +363,23 @@ embiggen = \{ pattern, runs } -> {
     runs: List.repeat runs 5 |> List.join,
 }
 
+printZone : Zone -> Str
+printZone = \zone ->
+    zone
+    |> List.map \{ numUnknowns, numDamagedAfter } ->
+        "?" |> Str.repeat numUnknowns |> Str.concat ("#" |> Str.repeat numDamagedAfter)
+    |> Str.joinWith ""
+
 part2 : Input -> Nat
 part2 = \records ->
     records
     |> List.map embiggen
     |> List.map \{ pattern, runs } ->
-        blobs = extractZones pattern
-        placeRunsInZones runs blobs
+        zones = extractZones pattern
+        dbg
+            zones |> List.map printZone |> Str.joinWith "."
+
+        placeRunsInZones runs zones
     |> List.sum
 
 example : Str
@@ -382,6 +392,7 @@ example =
     ????.######..#####. 1,6,5
     ?###???????? 3,2,1
     """
+
 expect
     answer = part1 (parse example)
     answer == 21
@@ -404,6 +415,11 @@ expect
 expect
     answer = part1 (parse ".??..??...?##.?.??..??...?##.?.??..??...?##.?.??..??...?##.?.??..??...?##. 1,1,3,1,1,3,1,1,3,1,1,3,1,1,3")
     answer == 16384
+
+expect
+    answerManual = placeRunsInUnknowns (List.repeat [3, 3, 1] 5 |> List.join) (20 * 5 + 4)
+    answer = part2 (parse "???????????????????? 3,3,1")
+    answer == answerManual
 
 expect
     answer = part2 (parse example)
