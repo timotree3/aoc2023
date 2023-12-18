@@ -134,11 +134,11 @@ part1 : Input -> Nat
 part1 = \records ->
     records
     |> List.map \{ pattern, runs } ->
-        blobs = extractBlobs pattern
+        blobs = extractZones pattern
         dbg
             blobs
 
-        placeRunsInBlobs runs blobs
+        placeRunsInZones runs blobs
     |> List.sum
 # |> List.map \record ->
 #     solns = findSolns record []
@@ -148,7 +148,9 @@ part1 = \records ->
 #     List.len solns
 # |> List.sum
 
-WildcardBlob : { numDamagedAfter : Nat, numUnknowns : Nat }
+## A contiguous pattern of `Unknown` and `Damaged`
+Zone : List ZoneSegment
+ZoneSegment : { numDamagedAfter : Nat, numUnknowns : Nat }
 
 countWhile : List elem, (elem -> Bool) -> Nat
 countWhile = \list, pred ->
@@ -156,99 +158,99 @@ countWhile = \list, pred ->
     |> List.findFirstIndex (\elem -> !(pred elem))
     |> Result.withDefault (List.len list)
 
-extractBlobs : List Spring -> List (List WildcardBlob)
-extractBlobs = \pattern -> extractBlobsHelper pattern []
+extractZones : List Spring -> List Zone
+extractZones = \pattern -> extractZonesHelper pattern []
 
-extractBlobsHelper = \pattern, blobsSoFar ->
+extractZonesHelper = \pattern, blobsSoFar ->
     numOperationalBefore = countWhile pattern \s -> s == Operational
     afterOperational = List.dropFirst pattern numOperationalBefore
-    { contiguousBlobs, after } = extractContiguousBlobsHelper afterOperational []
-    if List.isEmpty contiguousBlobs then
+    { zoneSegment, after } = extractZoneSegmentHelper afterOperational []
+    if List.isEmpty zoneSegment then
         blobsSoFar
     else
-        extractBlobsHelper after (List.append blobsSoFar contiguousBlobs)
+        extractZonesHelper after (List.append blobsSoFar zoneSegment)
 
-extractContiguousBlobsHelper = \pattern, blobsSoFar ->
+extractZoneSegmentHelper = \pattern, blobsSoFar ->
     numUnknowns = countWhile pattern \s -> s == Unknown
     afterUnknowns = List.dropFirst pattern numUnknowns
     numDamagedAfter = countWhile afterUnknowns \s -> s == Damaged
     afterDamage = List.dropFirst afterUnknowns numDamagedAfter
     if numUnknowns == 0 && numDamagedAfter == 0 then
-        { contiguousBlobs: blobsSoFar, after: pattern }
+        { zoneSegment: blobsSoFar, after: pattern }
     else
-        extractContiguousBlobsHelper afterDamage (List.append blobsSoFar { numDamagedAfter, numUnknowns })
+        extractZoneSegmentHelper afterDamage (List.append blobsSoFar { numDamagedAfter, numUnknowns })
 
-placeRunsInBlobs : List Run, List (List WildcardBlob) -> Nat
-placeRunsInBlobs = \runs, blobs ->
-    when blobs is
+placeRunsInZones : List Run, List Zone -> Nat
+placeRunsInZones = \runs, zones ->
+    when zones is
         [] ->
             if List.isEmpty runs then
                 1
             else
                 0
 
-        [contiguousBlobs, .. as nextBlobs] ->
+        [zone, .. as nextZones] ->
             splits runs
             |> List.walk 0 \numWaysSoFar, { before, others } ->
-                # outerLoop = { numWaysSoFar, before, others, blobsLen: List.len blobs }
+                # outerLoop = { numWaysSoFar, before, others, zonesLen: List.len zones }
                 # dbg
                 #     outerLoop
 
-                numWaysHere = placeRunsInContiguousBlobs before contiguousBlobs
+                numWaysHere = placeRunsInZone before zone
                 if numWaysHere == 0 then
                     numWaysSoFar
                 else
-                    numWaysSoFar + (numWaysHere * placeRunsInBlobs others nextBlobs)
+                    numWaysSoFar + (numWaysHere * placeRunsInZones others nextZones)
 
-placeRunsInContiguousBlobs : List Run, List WildcardBlob -> Nat
-placeRunsInContiguousBlobs = \runs, blobs ->
-    when blobs is
+placeRunsInZone : List Run, Zone -> Nat
+placeRunsInZone = \runs, zone ->
+    when zone is
         [] ->
             if List.isEmpty runs then
                 1
             else
                 0
 
-        [blob] if List.isEmpty runs && blob.numDamagedAfter == 0 -> 1
-        [blob, .. as nextBlobs] ->
+        [segment] if List.isEmpty runs && segment.numDamagedAfter == 0 -> 1
+        [segment, .. as nextSegments] ->
             runsSplits = possibleRunsSplits runs
             runsSplits
-            |> List.keepIf \{ runHead } -> runHead >= blob.numDamagedAfter
+            |> List.keepIf \{ runHead } -> runHead >= segment.numDamagedAfter
             |> List.walkUntil 0 \numWaysSoFar, { before, runHead, runTail, after } ->
-                # contiguousLoop = { before, numWaysSoFar, runHead, runTail, after, blobsLen: List.len blobs }
+                # contiguousLoop = { before, numWaysSoFar, runHead, runTail, after, zoneLen: List.len zone }
                 # dbg
                 #     contiguousLoop
 
-                numWaysInBlob = placeRunsInBlob before runHead blob
+                numWaysInSegment = placeRunsInSegment before runHead segment
 
-                if numWaysInBlob == 0 then
+                if numWaysInSegment == 0 then
                     Break numWaysSoFar
                 else
                     numWaysAfter =
-                        when subtractBeforeBlobs nextBlobs runTail is
-                            Ok blobsAfterTail ->
-                                when subtractBeforeBlobs blobsAfterTail 1 is
-                                    Ok blobsAfterPadding -> placeRunsInContiguousBlobs after blobsAfterPadding
+                        when subtractBeforeZone nextSegments runTail is
+                            Ok zoneAfterTail ->
+                                when subtractBeforeZone zoneAfterTail 1 is
+                                    Ok zoneAfterPadding -> placeRunsInZone after zoneAfterPadding
                                     Err Underflow if List.isEmpty after -> 1
                                     Err Underflow -> 0
 
                             Err Underflow -> 0
-                    Continue (numWaysSoFar + (numWaysInBlob * numWaysAfter))
-# # In order to find a valid configuration of runs in the blob,
-# # we at least need a run which is as long as the consecutive damage at the end of the blob.
+                    Continue (numWaysSoFar + (numWaysInSegment * numWaysAfter))
+# # In order to find a valid configuration of runs in the segment,
+# # we at least need a run which is as long as the consecutive damage at the end of the segment.
 # minRunsToUse =
-#     if blob.numDamagedAfter == 0 then
+#     if segment.numDamagedAfter == 0 then
 #         0
 #     else
-#         1 + List.findFirstIndex runs \run -> run >= blob.numDamagedAfter
+#         1 + List.findFirstIndex runs \run -> run >= segment.numDamagedAfter
 
 # List.range { start: At minRunsToUse, end: At (List.len runs) }
 # |> List.walkUntil 0 \numWaysSoFar, runsSplitPoint ->
 #     { before, others } = List.split runs runsSplitPoint
 #     when before is
-#         [] -> Continue (numWaysSoFar + placeRunsInBlobs others nextBlobs)
+#         [] -> Continue (numWaysSoFar + placeRunsInZones others nextZones)
 #         [.. as beforeRun, run] ->
-#             # Try splitting the run across this blob and the next
+#             # Try splitting the run across this segment and the next
 #              =
 #                 List.range { start: At 1, end: At run }
 #                 |> List.walkUntil 0 \numWaysSoFar2, runSplitPoint ->
@@ -270,26 +272,26 @@ possibleRunsSplits = \runs ->
     |> List.join
 # |> List.append { before: runs, runHead: 0, runTail: 0, after: [] }
 
-subtractBeforeBlobs : List WildcardBlob, Nat -> Result (List WildcardBlob) [Underflow]
-subtractBeforeBlobs = \blobs, toSubtractAtStart ->
+subtractBeforeZone : Zone, Nat -> Result Zone [Underflow]
+subtractBeforeZone = \zone, toSubtractAtStart ->
     if toSubtractAtStart == 0 then
-        Ok blobs
+        Ok zone
     else
-        when blobs is
+        when zone is
             [] -> Err Underflow
-            [{ numUnknowns, numDamagedAfter }, .. as nextBlobs] ->
+            [{ numUnknowns, numDamagedAfter }, .. as nextSegments] ->
                 newUnknowns = numUnknowns |> Num.subSaturated toSubtractAtStart
                 toSubtractAfter = toSubtractAtStart |> Num.subSaturated numUnknowns
                 newDamagedAfter = numDamagedAfter |> Num.subSaturated toSubtractAfter
                 toSubtractNext = toSubtractAfter |> Num.subSaturated numDamagedAfter
                 if toSubtractNext == 0 then
-                    newBlobs = blobs |> List.set 0 { numUnknowns: newUnknowns, numDamagedAfter: newDamagedAfter }
-                    Ok newBlobs
+                    newZone = zone |> List.set 0 { numUnknowns: newUnknowns, numDamagedAfter: newDamagedAfter }
+                    Ok newZone
                 else
-                    subtractBeforeBlobs nextBlobs toSubtractNext
+                    subtractBeforeZone nextSegments toSubtractNext
 
-placeRunsInBlob : List Run, Run, WildcardBlob -> Nat
-placeRunsInBlob = \runs, lastRun, { numUnknowns, numDamagedAfter } ->
+placeRunsInSegment : List Run, Run, ZoneSegment -> Nat
+placeRunsInSegment = \runs, lastRun, { numUnknowns, numDamagedAfter } ->
     if numDamagedAfter == 0 then
         placeRunsInUnknowns (List.append runs lastRun) numUnknowns
     else if lastRun == numUnknowns + numDamagedAfter && runs == [] then
@@ -373,8 +375,8 @@ part2 = \records ->
     records
     |> List.map embiggen
     |> List.map \{ pattern, runs } ->
-        blobs = extractBlobs pattern
-        placeRunsInBlobs runs blobs
+        blobs = extractZones pattern
+        placeRunsInZones runs blobs
     |> List.sum
 
 example : Str
