@@ -180,27 +180,39 @@ extractZoneSegmentHelper = \pattern, blobsSoFar ->
     else
         extractZoneSegmentHelper afterDamage (List.append blobsSoFar { numDamagedAfter, numUnknowns })
 
+collectSums : List (key, Num a) -> Dict key (Num a)
+collectSums = \entries ->
+    List.walk entries (Dict.empty {}) \dictSoFar, (key, val) ->
+        Dict.update dictSoFar key \existingVal ->
+            when existingVal is
+                Present v -> Present (v + val)
+                Missing if val == 0 -> Missing
+                Missing -> Present val
+
+step : Dict Nat Nat, List Run, Zone -> Dict Nat Nat
+step = \prevResults, runs, zone ->
+    results =
+        prevResults
+        |> Dict.toList
+        |> List.joinMap \(runsEnd, numWays) ->
+            runs
+            |> List.dropFirst runsEnd
+            |> splits
+            |> List.map \{ before: runsForZone } ->
+                (runsEnd + List.len runsForZone, placeRunsInZone runsForZone zone * numWays)
+        |> collectSums
+    dbg
+        { results, zone }
+
+    results
+
 placeRunsInZones : List Run, List Zone -> Nat
 placeRunsInZones = \runs, zones ->
-    when zones is
-        [] ->
-            if List.isEmpty runs then
-                1
-            else
-                0
-
-        [zone, .. as nextZones] ->
-            splits runs
-            |> List.walk 0 \numWaysSoFar, { before, others } ->
-                # outerLoop = { numWaysSoFar, before, others, zonesLen: List.len zones }
-                # dbg
-                #     outerLoop
-
-                numWaysHere = placeRunsInZone before zone
-                if numWaysHere == 0 then
-                    numWaysSoFar
-                else
-                    numWaysSoFar + (numWaysHere * placeRunsInZones others nextZones)
+    zones
+    |> List.walk (Dict.single 0 1) \prevResults, zone ->
+        step prevResults runs zone
+    |> Dict.get (List.len runs)
+    |> orCrash
 
 placeRunsInZone : List Run, Zone -> Nat
 placeRunsInZone = \runs, zone ->
@@ -236,24 +248,6 @@ placeRunsInZone = \runs, zone ->
 
                             Err Underflow -> 0
                     Continue (numWaysSoFar + (numWaysInSegment * numWaysAfter))
-# # In order to find a valid configuration of runs in the segment,
-# # we at least need a run which is as long as the consecutive damage at the end of the segment.
-# minRunsToUse =
-#     if segment.numDamagedAfter == 0 then
-#         0
-#     else
-#         1 + List.findFirstIndex runs \run -> run >= segment.numDamagedAfter
-
-# List.range { start: At minRunsToUse, end: At (List.len runs) }
-# |> List.walkUntil 0 \numWaysSoFar, runsSplitPoint ->
-#     { before, others } = List.split runs runsSplitPoint
-#     when before is
-#         [] -> Continue (numWaysSoFar + placeRunsInZones others nextZones)
-#         [.. as beforeRun, run] ->
-#             # Try splitting the run across this segment and the next
-#              =
-#                 List.range { start: At 1, end: At run }
-#                 |> List.walkUntil 0 \numWaysSoFar2, runSplitPoint ->
 
 splits : List elem -> List { before : List elem, others : List elem }
 splits = \list ->
@@ -270,7 +264,6 @@ possibleRunsSplits = \runs ->
             runTail = run - runHead
             { before, runHead, runTail, after }
     |> List.join
-# |> List.append { before: runs, runHead: 0, runTail: 0, after: [] }
 
 subtractBeforeZone : Zone, Nat -> Result Zone [Underflow]
 subtractBeforeZone = \zone, toSubtractAtStart ->
@@ -407,6 +400,10 @@ expect
 expect
     answer = part1 (parse "????.######..#####. 1,6,5")
     answer == 4
+
+expect
+    answer = part1 (parse ".??..??...?##.?.??..??...?##.?.??..??...?##.?.??..??...?##.?.??..??...?##. 1,1,3,1,1,3,1,1,3,1,1,3,1,1,3")
+    answer == 16384
 
 expect
     answer = part2 (parse example)
