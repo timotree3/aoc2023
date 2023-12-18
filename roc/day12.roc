@@ -323,7 +323,7 @@ placeRunsInUnknowns = \runs, numUnknowns ->
     total = List.sum runs
     ret =
         if total <= numUnknowns + 1 then
-            Num.toNat (choose (Num.toU128 (numUnknowns + 1 - total)) (Num.toU128 (List.len runs)))
+            choose (numUnknowns + 1 - total) (List.len runs)
         else
             0
     # choiceResult = { runs, numUnknowns, ret }
@@ -332,21 +332,16 @@ placeRunsInUnknowns = \runs, numUnknowns ->
 
     ret
 
-## n choose m = n!/m!(n-m)!
-choose : U128, U128 -> U128
-choose = \n, m ->
-    if n < m then
+## n choose k = n!/k!(n-k)!
+# https://stackoverflow.com/a/15302448/7246614
+choose : Nat, Nat -> Nat
+choose = \n, k ->
+    if n < k then
         0
+    else if k == 0 then
+        1
     else
-        factorialRange { start: At (n - m + 1), end: At n } // factorialRange { start: At 2, end: At m }
-
-factorialRange = \{ start: At start, end: At end } -> factorialRangeHelper start end 1
-
-factorialRangeHelper = \start, end, acc ->
-    if start <= end then
-        factorialRangeHelper (start + 1) end (start * acc)
-    else
-        acc
+        (n * choose (n - 1) (k - 1)) // k
 
 expect choose 4 3 == 4
 expect choose 5 3 == 10
@@ -356,6 +351,8 @@ expect choose 1 2 == 0
 expect choose 1 0 == 1
 expect choose 2 1 == 2
 expect choose 0 2 == 0
+expect choose 50 25 == 126_410_606_437_752
+expect choose 70 15 == 721_480_692_460_864
 
 embiggen : Record -> Record
 embiggen = \{ pattern, runs } -> {
@@ -419,6 +416,11 @@ expect
 expect
     answerManual = placeRunsInUnknowns (List.repeat [3, 3, 1] 5 |> List.join) (20 * 5 + 4)
     answer = part2 (parse "???????????????????? 3,3,1")
+    answer == answerManual
+
+expect
+    answerManual = placeRunsInUnknowns (List.repeat [2, 1, 1, 1, 1] 5 |> List.join) (15 * 5 + 4)
+    answer = part2 (parse "??????????????? 2,1,1,1,1")
     answer == answerManual
 
 expect
