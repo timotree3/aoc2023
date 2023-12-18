@@ -387,33 +387,28 @@ example =
     ????.######..#####. 1,6,5
     ?###???????? 3,2,1
     """
-# expect
-#     answer = part1 (parse example)
-#     answer == 21
+expect
+    answer = part1 (parse example)
+    answer == 21
 
-# expect
-#     answer = part1 (parse "??#?.???#?? 1,3")
-#     answer == 3
+expect
+    answer = part1 (parse "??#?.???#?? 1,3")
+    answer == 3
 
-# expect
-#     answer = part1 (parse "?###???????? 3,2,1")
-#     answer == 10
-# expect
-#     answer = part1 (parse ".????#??????###.? 1,1,1,1,5")
-#     answer == 2
+expect
+    answer = part1 (parse "?###???????? 3,2,1")
+    answer == 10
+expect
+    answer = part1 (parse ".????#??????###.? 1,1,1,1,5")
+    answer == 2
 
-# expect
-#     answer = part1 (parse "????.######..#####. 1,6,5")
-#     answer == 4
+expect
+    answer = part1 (parse "????.######..#####. 1,6,5")
+    answer == 4
 
 expect
     answer = part2 (parse example)
     answer == 525152
-
-# expect
-#     answer1 = part1 (parse "???.###???.###???.###???.###???.### 2,3,2,3,2,3,2,3,2,3")
-#     answer2 = part2 (parse "???.### 2,3")
-#     answer1 == answer2 && answer1 == 2
 
 main : Task {} I32
 main =
