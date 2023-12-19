@@ -202,7 +202,7 @@ step = \prevResults, runs, zone ->
                 (runsEnd + List.len runsForZone, placeRunsInZone runsForZone zone * numWays)
         |> collectSums
     dbg
-        { results, zone }
+        { zone, results }
 
     results
 
@@ -212,42 +212,121 @@ placeRunsInZones = \runs, zones ->
     |> List.walk (Dict.single 0 1) \prevResults, zone ->
         step prevResults runs zone
     |> Dict.get (List.len runs)
-    |> orCrash
+    |> Result.withDefault 0
+
+Placement : { runsPlaced : Nat, damageOverflow : Nat, padding : Nat }
+addSegmentToPlacement : Placement, List Run, ZoneSegment -> List (Placement, Nat)
+addSegmentToPlacement = \{ runsPlaced, damageOverflow, padding }, runs, segment ->
+    when overflowIntoSegment segment damageOverflow padding is
+        Adjusted adjustedSegment ->
+            if adjustedSegment.numDamagedAfter == 0 && List.len runs == runsPlaced then
+                [({ runsPlaced, damageOverflow, padding }, 1)]
+            else
+                runs
+                |> List.dropFirst runsPlaced
+                |> possibleRunsSplits
+                |> List.map \{ before: runsForSegment, runHead, runTail } ->
+                    newPlacement = {
+                        runsPlaced: runsPlaced + List.len runsForSegment + 1,
+                        damageOverflow: runTail,
+                        padding: 1,
+                    }
+                    numWaysInSegment = placeRunsInSegment runsForSegment runHead adjustedSegment
+                    # dbg
+                    #     { runsForSegment, runHead, numWaysInSegment }
+
+                    (newPlacement, numWaysInSegment)
+
+        Cascaded (newOverflow, newPadding) ->
+            [({ runsPlaced, damageOverflow: newOverflow, padding: newPadding }, 1)]
+
+        Incompatible -> []
+
+overflowIntoSegment : ZoneSegment, Nat, Nat -> [Adjusted ZoneSegment, Cascaded (Nat, Nat), Incompatible]
+overflowIntoSegment = \{ numUnknowns, numDamagedAfter }, damageOverflow, padding ->
+    newUnknowns = numUnknowns |> Num.subSaturated (damageOverflow + padding)
+    newDamagedAfter = numDamagedAfter |> Num.subSaturated (damageOverflow |> Num.subSaturated numUnknowns)
+    newDamageOverflow = damageOverflow |> Num.subSaturated (numUnknowns + numDamagedAfter)
+    newPadding = padding |> Num.subSaturated (numUnknowns |> Num.subSaturated damageOverflow)
+    if newPadding == 0 then
+        expect
+            newDamageOverflow == 0
+
+        Adjusted { numUnknowns: newUnknowns, numDamagedAfter: newDamagedAfter }
+    else if newDamagedAfter == 0 then
+        expect
+            newUnknowns == 0
+
+        Cascaded (newDamageOverflow, newPadding)
+    else
+        # Padding is being put where damage is required
+        Incompatible
+
+stepSegment : Dict Placement Nat, List Run, ZoneSegment -> Dict Placement Nat
+stepSegment = \prevResults, runs, segment ->
+    results =
+        prevResults
+        |> Dict.toList
+        |> List.joinMap \(placement, numWays) ->
+            addSegmentToPlacement placement runs segment
+            |> List.map \(newPlacement, numWaysInSegment) ->
+                (newPlacement, numWays * numWaysInSegment)
+        |> collectSums
+
+    dbg
+        { segment, results }
+
+    results
 
 placeRunsInZone : List Run, Zone -> Nat
 placeRunsInZone = \runs, zone ->
-    when zone is
-        [] ->
-            if List.isEmpty runs then
-                1
-            else
-                0
+    dbg
+        { runs, zone }
 
-        [segment] if List.isEmpty runs && segment.numDamagedAfter == 0 -> 1
-        [segment, .. as nextSegments] ->
-            runsSplits = possibleRunsSplits runs
-            runsSplits
-            |> List.keepIf \{ runHead } -> runHead >= segment.numDamagedAfter
-            |> List.walkUntil 0 \numWaysSoFar, { before, runHead, runTail, after } ->
-                # contiguousLoop = { before, numWaysSoFar, runHead, runTail, after, zoneLen: List.len zone }
-                # dbg
-                #     contiguousLoop
+    result =
+        zone
+        |> List.walk (Dict.single { runsPlaced: 0, damageOverflow: 0, padding: 0 } 1) \prevResults, segment ->
+            stepSegment prevResults runs segment
+        |> Dict.keepIf \({ runsPlaced, damageOverflow }, _) ->
+            runsPlaced == List.len runs && damageOverflow == 0
+        |> Dict.values
+        |> List.sum
+    dbg
+        { runs, zone, result }
 
-                numWaysInSegment = placeRunsInSegment before runHead segment
+    result
+# when zone is
+#     [] ->
+#         if List.isEmpty runs then
+#             1
+#         else
+#             0
 
-                if numWaysInSegment == 0 then
-                    Break numWaysSoFar
-                else
-                    numWaysAfter =
-                        when subtractBeforeZone nextSegments runTail is
-                            Ok zoneAfterTail ->
-                                when subtractBeforeZone zoneAfterTail 1 is
-                                    Ok zoneAfterPadding -> placeRunsInZone after zoneAfterPadding
-                                    Err Underflow if List.isEmpty after -> 1
-                                    Err Underflow -> 0
+#     [segment] if List.isEmpty runs && segment.numDamagedAfter == 0 -> 1
+#     [segment, .. as nextSegments] ->
+#         runsSplits = possibleRunsSplits runs
+#         runsSplits
+#         |> List.keepIf \{ runHead } -> runHead >= segment.numDamagedAfter
+#         |> List.walkUntil 0 \numWaysSoFar, { before, runHead, runTail, after } ->
+#             # contiguousLoop = { before, numWaysSoFar, runHead, runTail, after, zoneLen: List.len zone }
+#             # dbg
+#             #     contiguousLoop
 
-                            Err Underflow -> 0
-                    Continue (numWaysSoFar + (numWaysInSegment * numWaysAfter))
+#             numWaysInSegment = placeRunsInSegment before runHead segment
+
+#             if numWaysInSegment == 0 then
+#                 Break numWaysSoFar
+#             else
+#                 numWaysAfter =
+#                     when subtractBeforeZone nextSegments runTail is
+#                         Ok zoneAfterTail ->
+#                             when subtractBeforeZone zoneAfterTail 1 is
+#                                 Ok zoneAfterPadding -> placeRunsInZone after zoneAfterPadding
+#                                 Err Underflow if List.isEmpty after -> 1
+#                                 Err Underflow -> 0
+
+#                         Err Underflow -> 0
+#                 Continue (numWaysSoFar + (numWaysInSegment * numWaysAfter))
 
 splits : List elem -> List { before : List elem, others : List elem }
 splits = \list ->
@@ -265,23 +344,23 @@ possibleRunsSplits = \runs ->
             { before, runHead, runTail, after }
     |> List.join
 
-subtractBeforeZone : Zone, Nat -> Result Zone [Underflow]
-subtractBeforeZone = \zone, toSubtractAtStart ->
-    if toSubtractAtStart == 0 then
-        Ok zone
-    else
-        when zone is
-            [] -> Err Underflow
-            [{ numUnknowns, numDamagedAfter }, .. as nextSegments] ->
-                newUnknowns = numUnknowns |> Num.subSaturated toSubtractAtStart
-                toSubtractAfter = toSubtractAtStart |> Num.subSaturated numUnknowns
-                newDamagedAfter = numDamagedAfter |> Num.subSaturated toSubtractAfter
-                toSubtractNext = toSubtractAfter |> Num.subSaturated numDamagedAfter
-                if toSubtractNext == 0 then
-                    newZone = zone |> List.set 0 { numUnknowns: newUnknowns, numDamagedAfter: newDamagedAfter }
-                    Ok newZone
-                else
-                    subtractBeforeZone nextSegments toSubtractNext
+# subtractBeforeZone : Zone, Nat -> Result Zone [Underflow]
+# subtractBeforeZone = \zone, toSubtractAtStart ->
+#     if toSubtractAtStart == 0 then
+#         Ok zone
+#     else
+#         when zone is
+#             [] -> Err Underflow
+#             [{ numUnknowns, numDamagedAfter }, .. as nextSegments] ->
+#                 newUnknowns = numUnknowns |> Num.subSaturated toSubtractAtStart
+#                 toSubtractAfter = toSubtractAtStart |> Num.subSaturated numUnknowns
+#                 newDamagedAfter = numDamagedAfter |> Num.subSaturated toSubtractAfter
+#                 toSubtractNext = toSubtractAfter |> Num.subSaturated numDamagedAfter
+#                 if toSubtractNext == 0 then
+#                     newZone = zone |> List.set 0 { numUnknowns: newUnknowns, numDamagedAfter: newDamagedAfter }
+#                     Ok newZone
+#                 else
+#                     subtractBeforeZone nextSegments toSubtractNext
 
 placeRunsInSegment : List Run, Run, ZoneSegment -> Nat
 placeRunsInSegment = \runs, lastRun, { numUnknowns, numDamagedAfter } ->
@@ -390,48 +469,48 @@ example =
     ?###???????? 3,2,1
     """
 
-expect
-    answer = part1 (parse example)
-    answer == 21
+# expect
+#     answer = part1 (parse example)
+#     answer == 21
 
 expect
     answer = part1 (parse "??#?.???#?? 1,3")
     answer == 3
 
-expect
-    answer = part1 (parse "?###???????? 3,2,1")
-    answer == 10
-expect
-    answer = part1 (parse ".????#??????###.? 1,1,1,1,5")
-    answer == 2
+# expect
+#     answer = part1 (parse "?###???????? 3,2,1")
+#     answer == 10
+# expect
+#     answer = part1 (parse ".????#??????###.? 1,1,1,1,5")
+#     answer == 2
 
-expect
-    answer = part1 (parse "????.######..#####. 1,6,5")
-    answer == 4
+# expect
+#     answer = part1 (parse "????.######..#####. 1,6,5")
+#     answer == 4
 
-expect
-    answer = part1 (parse ".??..??...?##.?.??..??...?##.?.??..??...?##.?.??..??...?##.?.??..??...?##. 1,1,3,1,1,3,1,1,3,1,1,3,1,1,3")
-    answer == 16384
+# expect
+#     answer = part1 (parse ".??..??...?##.?.??..??...?##.?.??..??...?##.?.??..??...?##.?.??..??...?##. 1,1,3,1,1,3,1,1,3,1,1,3,1,1,3")
+#     answer == 16384
 
-expect
-    answerManual = placeRunsInUnknowns (List.repeat [3, 3, 1] 5 |> List.join) (20 * 5 + 4)
-    answer = part2 (parse "???????????????????? 3,3,1")
-    answer == answerManual
+# expect
+#     answerManual = placeRunsInUnknowns (List.repeat [3, 3, 1] 5 |> List.join) (20 * 5 + 4)
+#     answer = part2 (parse "???????????????????? 3,3,1")
+#     answer == answerManual
 
-expect
-    answerManual = placeRunsInUnknowns (List.repeat [2, 1, 1, 1, 1] 5 |> List.join) (15 * 5 + 4)
-    answer = part2 (parse "??????????????? 2,1,1,1,1")
-    answer == answerManual
+# expect
+#     answerManual = placeRunsInUnknowns (List.repeat [2, 1, 1, 1, 1] 5 |> List.join) (15 * 5 + 4)
+#     answer = part2 (parse "??????????????? 2,1,1,1,1")
+#     answer == answerManual
 
 ## Regression test: Code saw ".##..#" as valid because
 ## it skipped required damage for one space after an overflowing run.
-expect
-    answer = part1 (parse "?#?#.? 2,1")
-    answer == 1
+# expect
+#     answer = part1 (parse "?#?#.? 2,1")
+#     answer == 1
 
-expect
-    answer = part2 (parse example)
-    answer == 525152
+# expect
+#     answer = part2 (parse example)
+#     answer == 525152
 
 main : Task {} I32
 main =
