@@ -423,6 +423,12 @@ expect
     answer = part2 (parse "??????????????? 2,1,1,1,1")
     answer == answerManual
 
+## Regression test: Code saw ".##..#" as valid because
+## it skipped required damage for one space after an overflowing run.
+expect
+    answer = part1 (parse "?#?#.? 2,1")
+    answer == 1
+
 expect
     answer = part2 (parse example)
     answer == 525152
@@ -431,6 +437,8 @@ main : Task {} I32
 main =
     {} <- Stdout.line "Part 1: \(Num.toStr (part1 (parse input)))" |> Task.await
     Stdout.line "Part 2: \(Num.toStr (part2 (parse input)))"
+
+# wrong answer: 850504321022858
 
 orCrash : Result v e -> v where e implements Inspect
 orCrash = \r ->
