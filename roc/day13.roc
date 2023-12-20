@@ -5,8 +5,7 @@ app "day13"
 
 Input : List Grid
 Grid : List (List Tile)
-# Tile : [Ash, Rock]
-Tile : U8
+Tile : [Ash, Rock]
 
 parse : Str -> Input
 parse = \inp ->
@@ -25,11 +24,11 @@ parseLine = \line ->
     |> Str.toUtf8
     |> List.map parseTile
 
-parseTile = \byte -> byte
-# when byte is
-#     '#' -> Rock
-#     '.' -> Ash
-#     _ -> crash "unexpected tile in input"
+parseTile = \byte ->
+    when byte is
+        '#' -> Rock
+        '.' -> Ash
+        _ -> crash "unexpected tile in input"
 
 findHorizontalReflectionWithError = \grid, desiredError ->
     List.range { start: At 1, end: Before (List.len grid) }
