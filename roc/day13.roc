@@ -48,7 +48,7 @@ editDistance = \xs, ys ->
 findReflectionWithError = \grid, desiredError ->
     findHorizontalReflectionWithError grid desiredError
     |> Result.map Horizontal
-    |> Result.onErr \_ ->
+    |> Result.onErr \NotFound ->
         findHorizontalReflectionWithError (columns grid) desiredError
         |> Result.map Vertical
     |> orCrash
