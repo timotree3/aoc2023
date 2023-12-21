@@ -16,7 +16,7 @@ parse = \inp ->
 backshiftRocks = \row ->
     row
     |> splitOn '#'
-    |> List.map List.sortDesc
+    |> List.map List.sortDesc # Sort 'O' before '.'
     |> joinWith '#'
 
 expect 'O' > '.'
@@ -54,18 +54,20 @@ spinCycle = \grid ->
     |> List.map backshiftRocks
     |> List.map List.reverse
 
+## `iterateWithPeriodDetection x f n` is equal to `iterate x f n`
+## but uses a shortcut to fast-forward if a cycle is detected.
 iterateWithPeriodDetection : state, (state -> state), Nat -> state where state implements Eq
 iterateWithPeriodDetection = \start, f, fuel1 ->
-    (periodicElem, fuel2) = findPeriodicElement start f fuel1
+    (periodicPoint, fuel2) = findPeriodicPoint start f fuel1
     if fuel2 == 0 then
-        periodicElem
+        periodicPoint
     else
-        (reocurrence, fuel3) = iterateUntil (f periodicElem) f (\x -> x == periodicElem) (fuel2 - 1)
+        (reoccurrence, fuel3) = iterateUntil (f periodicPoint) f (\x -> x == periodicPoint) (fuel2 - 1)
 
         period = fuel2 - fuel3
         fuel4 = fuel3 % period
 
-        iterate reocurrence f fuel4
+        iterate reoccurrence f fuel4
 
 iterate = \x, f, n ->
     if n == 0 then
@@ -73,7 +75,19 @@ iterate = \x, f, n ->
     else
         iterate (f x) f (n - 1)
 
-findPeriodicElement = \start, next, fuel ->
+## Attempt to find a periodic point in `f`, that is,
+## a point `p` such that `iterate p f n == p` for some n > 0.
+##
+## If `findPeriodicPoint start f fuel` detects a perioidic point
+## in less than `fuel` iterations of `f`, it returns a tuple containing the periodic point
+## and the fuel remaining after encoutering it.
+##
+## If we run out of fuel before detecting a periodic point,
+## we return the final state reached and remaining fuel `0`.
+##
+## Uses constant space via [the tortoise and hare algorithm](https://en.wikipedia.org/wiki/Tortoise_and_hare_algorithm).
+findPeriodicPoint : state, (state -> state), Nat -> (state, Nat) where state implements Eq
+findPeriodicPoint = \start, next, fuel ->
     tortoiseHare start (next start) next fuel
 tortoiseHare = \tortoise, hare, next, fuel ->
     if fuel == 0 || tortoise == hare then
