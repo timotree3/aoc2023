@@ -391,6 +391,7 @@ chaseCycleTR = \node, nextFrom, seen, pathSoFar ->
             # `nodeRestore` should equal `node` but `node` somehow changes value due to a miscompilation
             chaseCycleTR nextNode nextFrom (Dict.insert seen nodeRestore (List.len pathSoFar)) (List.concat pathSoFar nextPath)
 
+## Aligns a list of cycles so that they all start at the same index.
 alignCycles : List CycleDescriptor -> List CycleDescriptor
 alignCycles = \cycleDescrs ->
     max =
