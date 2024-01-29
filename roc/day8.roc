@@ -10,7 +10,8 @@ main =
     Stdout.line "Part 2: \(Num.toStr (part2 (parse input)))"
 
 Direction : [Left, Right]
-Input : { directions : List Direction, nodes : Dict Str (Str, Str) }
+Node : Str
+Input : { directions : List Direction, nodes : Dict Node (Node, Node) }
 
 # Parsing
 
@@ -32,14 +33,14 @@ parseDirection = \b ->
         'R' -> Right
         _ -> crash "expected direction to be 'L' or 'R'"
 
-parseNodes : Str -> Dict Str (Str, Str)
+parseNodes : Str -> Dict Node (Node, Node)
 parseNodes = \s ->
     s
     |> Str.split "\n"
     |> List.map parseNode
     |> Dict.fromList
 
-parseNode : Str -> (Str, (Str, Str))
+parseNode : Str -> (Node, (Node, Node))
 parseNode = \line ->
     { before: node, after: exits } = Str.splitFirst line " = (" |> orCrash
     { before: left, after: right } =
@@ -186,7 +187,7 @@ congruentToBoth = \s, p, t, q ->
     #     - I know this from playing modular division
     #   - p * (n/p mod q) has unique answers mod (p * q / gcd(p,q)) = lcm(p, q)
     #
-    # A simpler formula is given at https://en.wikipedia.org/wiki/Chinese_remainder_theorem#Generalization_to_non-coprime_moduli,
+    # After writing this, I found a simpler formula at https://en.wikipedia.org/wiki/Chinese_remainder_theorem#Generalization_to_non-coprime_moduli,
     # but this is the one I came up with.
     x <- divMod (t - s) p q |> Result.map
     x * p + s
@@ -276,7 +277,10 @@ lcm = \a, b -> a * b |> Num.divTrunc (gcd a b)
 
 ## From a given start node, step once through the list of directions,
 ## returning the node reached and the list of indices where an "end node" was passed.
-stepDirections : Input, Str -> (Str, List Nat)
+##
+## This function allows us to interpret the input as a graph where
+## each node has exactly one out-edge and the edges are labelled by these index lists.
+stepDirections : Input, Node -> (Node, List Nat)
 stepDirections = \{ nodes, directions }, start ->
     (dst, ends) = List.walkWithIndex directions (start, []) \(node, endsFound), dir, i ->
 
@@ -297,151 +301,175 @@ stepDirections = \{ nodes, directions }, start ->
 
     (dst, ends)
 
-chaseCycle : Dict Str (Str, List (List Nat)), Input, Str -> Dict Str (Str, List (List Nat))
-chaseCycle = \outcomes, inp, start ->
-    chaseCycleTR : Str, Dict Str Nat, List (List Nat) -> Dict Str (Str, List (List Nat))
-    chaseCycleTR = \node, seen, ends ->
-        nodeBk = node |> Str.concat "bk" # Work around miscompilation.. Roc is immature
+endIndicesFromPath : List (List Nat), Nat -> List I64
+endIndicesFromPath = \path, stepSize ->
+    out, ends, stepNum <- List.walkWithIndex path []
+    List.concat out (List.map ends \i -> i + stepNum * stepSize |> Num.toI64)
 
-        when Dict.get seen node is
-            Ok cycleStart ->
-                seen
-                |> Dict.map \_, i ->
-                    newEnds =
-                        if i < cycleStart then
-                            List.sublist ends { start: i, len: cycleStart - i }
-                        else
-                            List.dropFirst ends i
+CycleDescriptor : { preCyclePath : List (List Nat), cyclePath : List (List Nat) }
 
-                    (node, newEnds)
+chaseCycles : List Node, Input -> List CycleDescriptor
+chaseCycles = \startNodes, inp ->
+    destinies = computeDestinies (Dict.empty {}) inp (Set.fromList startNodes)
+    startNodes
+    |> List.map \start ->
+        (cycleNode, preCyclePath) =
+            destinies
+            |> Dict.get start
+            |> orCrash
+        (cycleNode2, cyclePath) =
+            destinies
+            |> Dict.get cycleNode
+            |> orCrash
+        expect cycleNode == cycleNode2
+        { preCyclePath, cyclePath }
 
-            Err KeyNotFound ->
-                (dst, nodeEnds) =
-                    when Dict.get outcomes node is
-                        Ok outcome -> outcome
-                        Err KeyNotFound ->
-                            outcome = stepDirections inp node
-                            (outcome.0, [outcome.1])
+NextNodeCache edgeLabel : Dict Node (Node, List edgeLabel)
 
-                nodeRestore = nodeBk |> Str.replaceFirst "bk" ""
-                # `nodeRestore` should equal `node` but `node` somehow changes value due to a miscompilation
-                chaseCycleTR dst (Dict.insert seen nodeRestore (List.len ends)) (List.concat ends nodeEnds)
-    chaseCycleTR start (Dict.empty {}) []
-
-dictArbitrary = \dict ->
-    Dict.walkUntil dict (Err Empty) \_, k, v -> Break (Ok (k, v))
-
-# Concatenates cyclic edges so that the maximum cycle length is 1
-chaseCycles : Dict Str (Str, List (List Nat)), Input, Dict Str (Str, List (List Nat)) -> Dict Str (Str, List (List Nat))
-chaseCycles = \outcomes, inp, todo ->
-    when dictArbitrary todo is
-        Err Empty -> outcomes
-        Ok (start, _) ->
-            updates = chaseCycle outcomes inp start
-            newOutcomes =
-                outcomes
+## Compute the destinies of every node reachable from `todo`, updating `cache`.
+##
+## Maintains a cache mapping nodes to their "destinies":
+## Since all nodes are destined to eventually end up in a cycle,
+## we define the "destiny" of a node as as pair of
+## - Its "destination" -- the first node in its cycle reachable from it
+## - The path of edges to its destination
+##
+## The destiny of a node which is a member of a cycle is itself.
+## Therefore, the cache has a maximum cycle length of 1.
+computeDestinies : NextNodeCache (List Nat), Input, Set Node -> NextNodeCache (List Nat)
+computeDestinies = \cache, inp, todo ->
+    when setArbitrary todo is
+        Err Empty -> cache
+        Ok start ->
+            updates = chaseCycle start (cachedNextFrom cache inp)
+            newCache =
+                cache
                 |> Dict.insertAll updates
             newTodo =
                 todo
-                |> Dict.removeAll updates
-            chaseCycles newOutcomes inp newTodo
+                |> setRemoveAllDict updates
+            computeDestinies newCache inp newTodo
 
-advanceCycle = \{ preCycleEnds, cycleEnds }, desiredLen ->
-    growth = desiredLen - List.len preCycleEnds
-    cycleLen = List.len cycleEnds
+cachedNextFrom : NextNodeCache (List Nat), Input -> (Node -> (Node, List (List Nat)))
+cachedNextFrom = \cache, inp ->
+    \node ->
+        when Dict.get cache node is
+            Ok outcome -> outcome
+            Err KeyNotFound ->
+                (nextNode, edgeLabel) = stepDirections inp node
+                (nextNode, [edgeLabel])
+
+## Walks from `start` until encountering a cycle,
+## returning a cache with the destinies of all intermediate nodes.
+##
+## The returned cache is acyclic with one exception:
+## The first node encountered in the cycle points back to itself.
+chaseCycle : Node, (Node -> (Node, List edgeLabel)) -> NextNodeCache edgeLabel
+chaseCycle = \start, nextFrom ->
+    chaseCycleTR start nextFrom (Dict.empty {}) []
+chaseCycleTR = \node, nextFrom, seen, pathSoFar ->
+    nodeBk = node |> Str.concat "bk" # Work around miscompilation.. Roc is immature
+
+    when Dict.get seen node is
+        Ok cycleStart ->
+            # `node` is the first node in the cycle which is reachable from `start`.
+            # All the intermediate nodes (recorded in `seen`) are destined to end up at `node`.
+            seen
+            |> Dict.map \_seenNode, i ->
+                pathFromSeenToNode =
+                    if i < cycleStart then
+                        List.sublist pathSoFar { start: i, len: cycleStart - i }
+                    else
+                        List.dropFirst pathSoFar i
+
+                (node, pathFromSeenToNode)
+
+        Err KeyNotFound ->
+            (nextNode, nextPath) = nextFrom node
+
+            nodeRestore = nodeBk |> Str.replaceLast "bk" ""
+            # `nodeRestore` should equal `node` but `node` somehow changes value due to a miscompilation
+            chaseCycleTR nextNode nextFrom (Dict.insert seen nodeRestore (List.len pathSoFar)) (List.concat pathSoFar nextPath)
+
+alignCycles : List CycleDescriptor -> List CycleDescriptor
+alignCycles = \cycleDescrs ->
+    max =
+        cycleDescrs
+        |> List.map \{ preCyclePath } -> List.len preCyclePath
+        |> List.max
+    when max is
+        Ok desiredStart ->
+            cycleDescrs
+            |> List.map \descr -> advanceCycle descr desiredStart
+        Err _ -> []
+
+
+## Returns a new cycle descriptor with `preCyclePath` extended to length `desiredStart`.
+advanceCycle : CycleDescriptor, Nat -> CycleDescriptor
+advanceCycle = \{ preCyclePath, cyclePath }, desiredStart ->
+    growth = desiredStart - List.len preCyclePath
+    cycleLen = List.len cyclePath
     cycleCopies = Num.divTrunc growth cycleLen
     cycleRotation = growth % cycleLen
-    cyclePrefix = List.takeFirst cycleEnds cycleRotation
+    cyclePrefix = List.takeFirst cyclePath cycleRotation
 
     {
-        preCycleEnds: preCycleEnds
-        |> List.concat (List.join (List.repeat cycleEnds cycleCopies))
+        preCyclePath: preCyclePath
+        |> List.concat (List.join (List.repeat cyclePath cycleCopies))
         |> List.concat cyclePrefix,
-        cycleEnds: cycleEnds
+        cyclePath: cyclePath
         |> List.dropFirst cycleRotation
         |> List.concat cyclePrefix,
     }
-
-flattenEnds = \endsPerStep, stepSize ->
-    out, ends, stepNum <- List.walkWithIndex endsPerStep []
-    List.concat out (List.map ends \i -> i + stepNum * stepSize |> Num.toI64)
 
 part2 : Input -> Nat
 part2 = \{ directions, nodes } ->
     startNodes =
         nodes
-        |> Dict.keepIf \(k, _) -> isStartNode k
-        |> Dict.map \_, _ -> ("", [])
-
-    outcomes = chaseCycles (Dict.empty {}) { directions, nodes } startNodes
-    dbg
-        outcomes
+        |> Dict.keys
+        |> List.keepIf \k -> isStartNode k
 
     cycleDescrs =
-        startNodes
-        |> Dict.keys
-        |> List.map \start ->
-            (cycleNode, preCycleEnds) =
-                outcomes
-                |> Dict.get start
-                |> orCrash
-            (cycleNode2, cycleEnds) =
-                outcomes
-                |> Dict.get cycleNode
-                |> orCrash
-            expect cycleNode == cycleNode2
-            { preCycleEnds, cycleEnds }
-
-    dbg
+        chaseCycles startNodes { directions, nodes }
+        |> alignCycles
+    cycleStart =
         cycleDescrs
-
-    uniformPreLen =
-        cycleDescrs
-        |> List.map \{ preCycleEnds } -> List.len preCycleEnds
-        |> List.max
+        |> List.get 0
         |> orCrash
-
-    uniformCycleDescrs =
-        cycleDescrs
-        |> List.map \descr -> advanceCycle descr uniformPreLen
-
-    dbg
-        uniformCycleDescrs
+        |> .preCyclePath
+        |> List.len
 
     directionsLen = List.len directions
 
     preCycleWins =
-        uniformCycleDescrs
-        |> List.map \{ preCycleEnds } -> flattenEnds preCycleEnds directionsLen
-        |> List.walk (Err Empty) \state, b ->
-            when state is
-                Err Empty -> Ok b
-                Ok a -> Ok (intersectionSorted a b)
+        cycleDescrs
+        |> List.map \{ preCyclePath } -> endIndicesFromPath preCyclePath directionsLen
+        |> listReduce intersectionSorted
         |> orCrash
-    when List.get preCycleWins 0 is
-        Ok win -> Num.toNat win
-        Err OutOfBounds ->
-            flattened =
-                uniformCycleDescrs
-                |> List.map \{ cycleEnds } ->
-                    endsSet =
-                        cycleEnds
-                        |> flattenEnds directionsLen
+    when preCycleWins is
+        [win, ..] -> Num.toNat win
+        [] ->
+            congruenceSets =
+                cycleDescrs
+                |> List.map \{ cyclePath } ->
+                    endIndices =
+                        cyclePath
+                        |> endIndicesFromPath directionsLen
                         |> Set.fromList
-                    cycleLen = List.len cycleEnds * directionsLen
-                    (endsSet, Num.toI64 cycleLen)
+                    cycleLen = List.len cyclePath * directionsLen
+                    (endIndices, Num.toI64 cycleLen)
 
             dbg
-                flattened
+                congruenceSets
 
-            flattened
+            congruenceSets
             |> List.walk (Set.single 0, 1) mergeCongruenceSets
             |> .0
             |> Set.toList
             |> List.min
             |> orCrash
             |> Num.toNat
-            |> Num.add (uniformPreLen * directionsLen)
+            |> Num.add (cycleStart * directionsLen)
 
 # Additional tests
 
@@ -547,3 +575,17 @@ orCrash = \r ->
                 e
 
             crash "orCrash encounted Err"
+
+## Returns an arbitrary element from a set in constant time
+setArbitrary = \set ->
+    Set.walkUntil set (Err Empty) \_, elem -> Break (Ok elem)
+
+## Removes all the keys in a dict from a set
+setRemoveAllDict = \set, dict ->
+    Dict.walk dict set \acc, k, _ -> Set.remove acc k
+
+listReduce : List elem, (elem, elem -> elem) -> Result elem [Empty]
+listReduce = \list, combine ->
+    when list is
+        [first, .. as rest] -> Ok (List.walk rest first combine)
+        [] -> Err Empty
