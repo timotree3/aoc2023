@@ -330,7 +330,7 @@ NextNodeCache edgeLabel : Dict Node (Node, List edgeLabel)
 ##
 ## Maintains a cache mapping nodes to their "destinies":
 ## Since all nodes are destined to eventually end up in a cycle,
-## we define the "destiny" of a node as as pair of
+## we define the "destiny" of a node as a pair of
 ## - Its "destination" -- the first node in its cycle reachable from it
 ## - The path of edges to its destination
 ##
