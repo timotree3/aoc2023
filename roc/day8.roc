@@ -1,9 +1,18 @@
+## Solution to both parts of https://adventofcode.com/2023/day/8
 app "day8"
     packages { pf: "https://github.com/roc-lang/basic-cli/releases/download/0.7.0/bkGby8jb0tmZYsy2hg1E_B2QrCgcSTxdUlHtETwm5m4.tar.br" }
     imports [pf.Stdout, pf.Task.{ Task }, "../inputs/day8.txt" as input : Str]
     provides [main] to pf
 
-Input : { directions : List [Left, Right], nodes : Dict Str (Str, Str) }
+main : Task {} I32
+main =
+    {} <- Stdout.line "Part 1: \(Num.toStr (part1 (parse input)))" |> Task.await
+    Stdout.line "Part 2: \(Num.toStr (part2 (parse input)))"
+
+Direction : [Left, Right]
+Input : { directions : List Direction, nodes : Dict Str (Str, Str) }
+
+# Parsing
 
 parse : Str -> Input
 parse = \inp ->
@@ -11,7 +20,7 @@ parse = \inp ->
 
     { directions: parseDirections directions, nodes: parseNodes nodes }
 
-parseDirections : Str -> List [Left, Right]
+parseDirections : Str -> List Direction
 parseDirections = \s ->
     s
     |> Str.toUtf8
@@ -40,6 +49,46 @@ parseNode = \line ->
         |> orCrash
     (node, (left, right))
 
+# Part 1
+
+example1 =
+    """
+    RL
+
+    AAA = (BBB, CCC)
+    BBB = (DDD, EEE)
+    CCC = (ZZZ, GGG)
+    DDD = (DDD, DDD)
+    EEE = (EEE, EEE)
+    GGG = (GGG, GGG)
+    ZZZ = (ZZZ, ZZZ)
+    """
+
+expect
+    answer = part1 (parse example1)
+    # It takes two steps to get from AAA to ZZZ by going RL:
+    # R to CCC then L to ZZZ.
+    answer == 2
+
+example2 =
+    """
+    LLR
+
+    AAA = (BBB, BBB)
+    BBB = (AAA, ZZZ)
+    ZZZ = (ZZZ, ZZZ)
+    """
+
+expect
+    answer = part1 (parse example2)
+    # It takes 6 steps to get from AAA to ZZZ by going LLR:
+    # L to BBB, L to AAA, R to BBB, L to AAA, L to BBB, R to ZZZ
+    answer == 6
+
+part1 : Input -> Nat
+part1 = \{ directions, nodes } ->
+    walk startNode directions nodes 0
+
 startNode = "AAA"
 endNode = "ZZZ"
 
@@ -49,7 +98,7 @@ followDirection = \(left, right), direction ->
         Right -> right
 
 step = \node, directions, nodes, i ->
-    dir = List.get directions (Num.rem i (List.len directions)) |> orCrash
+    dir = List.get directions (i % (List.len directions)) |> orCrash
 
     nodes
     |> Dict.get node
@@ -64,35 +113,98 @@ walk = \node, directions, nodes, i ->
         |> step directions nodes i
         |> walk directions nodes (i + 1)
 
-part1 : Input -> Nat
-part1 = \{ directions, nodes } ->
-    walk startNode directions nodes 0
+# Part 2
+
+example3 =
+    """
+    LR
+
+    11A = (11B, XXX)
+    11B = (XXX, 11Z)
+    11Z = (11B, XXX)
+    22A = (22B, XXX)
+    22B = (22C, 22C)
+    22C = (22Z, 22Z)
+    22Z = (22B, 22B)
+    XXX = (XXX, XXX)
+    """
+
+expect
+    answer = part2 (parse example3)
+    # It takes 6 steps to reach Zs with all cursors simultaneously starting from 11A and 22A and going LR.
+    # 0: 11A and 22A
+    # 1: 11B and 22B
+    # 2: 11Z and 22C
+    # 3: 11B and 22Z
+    # 4: 11Z and 22B
+    # 5: 11B and 22C
+    # 6: 11Z and 22Z
+    answer == 6
 
 isStartNode = \name -> Str.endsWith name "A"
 isEndNode = \name -> Str.endsWith name "Z"
 
-intersectionSorted = \xs, ys ->
-    intersectionSortedTC xs ys []
-intersectionSortedTC = \xs, ys, acc ->
-    when (xs, ys) is
-        ([], _) | (_, []) -> acc
-        ([x, .. as xs2], [y, .. as ys2]) ->
-            when Num.compare x y is
-                EQ -> intersectionSortedTC xs2 ys2 (List.append acc x)
-                LT -> intersectionSortedTC xs2 ys acc
-                GT -> intersectionSortedTC xs ys2 acc
+## Returns the intersection of two "congruence sets" in O(nm) time
+##
+## A congruence set is a tuple `(s, p)` representing
+## a set of possible numbers `s` which repeats with period `p`.
+##
+## e.g. the congruence set ({1, 2}, 4) represents the infinite set {1, 2, 5, 6, 9, 10, 13, 14, ...}
+mergeCongruenceSets : (Set I64, I64), (Set I64, I64) -> (Set I64, I64)
+mergeCongruenceSets = \(ms, p), (ns, q) ->
+    (filterMapPairs ms ns \m, n -> congruentToBoth m p n q, lcm p q)
 
-        _ -> crash "unreachable"
+## Returns the the lowest n such that n % p == s and n % q == t.
+congruentToBoth = \s, p, t, q ->
+    dbg
+        { s, p, t, q }
 
+    # We use the formula n = ((t - s)/p mod q) * p + s
+    #
+    # Rationale:
+    # - Let's work with the example of s = 2, p = 3, t = 3, and q = 5.
+    # - We need to find an n such that n % 3 == 2 and n % 5 == 3.
+    # - n = 2 satisfies the first condition.
+    # - Now the question is how many 3s to we have to add to get n % 5 == 3
+    # - Right now n % 5 == 2. We have to add 1 mod 5. 1/3 mod 5 = 2.
+    # - Therefore we have to add 2 * 3.
+    # - n = 2 + 2 * 3 = 8
+    #
+    # That example was simple because both p and q were prime.
+    # - Now let's find an n such that n % 6 == 4 and n % 9 == 5 (impossible)
+    #   - n = ((5 - 4)/6 mod 9) * 6 + 4
+    #   - 1/6 mod 9 doesn't exist
+    #   - We would get an error as desired
+    # - Now let's find an n such that n % 6 == 4 and n % 9 == 7
+    #   - n = ((7 - 4)/6 mod 9) * 6 + 4
+    #   - 3/6 mod 9 = 2
+    #   - 2 * 6 + 4 = 16
+    #
+    # Will our answer be unique mod lcm(p, q)? Yes.
+    # - Is p * (n/p mod q) mod lcm(p, q) unique?
+    #   - (n/p mod q) is unique mod (q/gcd(p, q))
+    #     - I know this from playing modular division
+    #   - p * (n/p mod q) has unique answers mod (p * q / gcd(p,q)) = lcm(p, q)
+    #
+    # A simpler formula is given at https://en.wikipedia.org/wiki/Chinese_remainder_theorem#Generalization_to_non-coprime_moduli,
+    # but this is the one I came up with.
+    x <- divMod (t - s) p q |> Result.map
+    x * p + s
+
+expect congruentToBoth 2 3 3 5 == Ok 8
+expect congruentToBoth 4 6 7 9 == Ok 16
+expect congruentToBoth 0 2 1 6 == Err InvalidDivision
+
+## The [Extended Euclidean Algorithm](https://en.wikipedia.org/wiki/Extended_Euclidean_algorithm)
 xgcd : I64, I64 -> (I64, I64, I64)
 xgcd = \a, b ->
-    (r, s, t) = xgcdTC (Num.max a b) (Num.min a b) 1 0 0 1
+    (r, s, t) = xgcdTR (Num.max a b) (Num.min a b) 1 0 0 1
     if a >= b then
         (r, s, t)
     else
         (r, t, s)
 
-xgcdTC = \r0, r1, s0, s1, t0, t1 ->
+xgcdTR = \r0, r1, s0, s1, t0, t1 ->
     if r1 == 0 then
         (r0, s0, t0)
     else
@@ -100,7 +212,7 @@ xgcdTC = \r0, r1, s0, s1, t0, t1 ->
         r2 = r0 % r1
         s2 = s0 - (q2 * s1)
         t2 = t0 - (q2 * t1)
-        xgcdTC r1 r2 s1 s2 t1 t2
+        xgcdTR r1 r2 s1 s2 t1 t2
 
 expect
     answer = xgcd 240 46
@@ -110,54 +222,7 @@ expect
     answer = xgcd 46 240
     answer == (2, 47, -9)
 
-filterMapPairs : Set a, Set a, (a, a -> Result b *) -> Set b
-filterMapPairs = \xs, ys, f ->
-    x <- Set.joinMap xs
-    y <- Set.joinMap ys
-    when f x y is
-        Ok v -> Set.single v
-        Err _ -> Set.empty {}
-
-mergeCongruenceSets : (Set I64, I64), (Set I64, I64) -> (Set I64, I64)
-mergeCongruenceSets = \(ms, p), (ns, q) ->
-    (filterMapPairs ms ns \m, n -> congruentToBoth m p n q, lcm p q)
-
-## Returns the the lowest k such that k % p == m and k % q == n.
-# e.q for k % 3 == 2 and k % 5 == 3
-# solution: start with n = 2. This satisfies n % 3 = 2.
-# Now the question is how many 3s to we have to add to get n % 5 == 3
-# Right now n % 5 == 2. We have to add 1 mod 5. 1/3 mod 5 = 2. Therefore we have to add 2 * 3.
-# n = 2 + 2 * 3 = 8
-#
-# General algorithm for finding n st n % p == m and n % q == k:
-# n = m + p * ((k - m)/p mod q)
-# Specific instance:
-# 8 = 2 + 3 * ((3 - 2)/3 mod 5)
-# 8 = 3 + 5 * ((2 - 3)/5 mod 3)
-#
-# Now let's say p = 6 and q = 9
-# e.g. n st n % 6 == 4 and n % 9 == 5
-# Same algorithm?
-# n = 4 + 6 * ((5 - 4)/6 mod 9) -- doesn't exist
-# Let's try n st n % 6 == 4 and n % 9 == 7
-# n = 4 + 6 * ((7 - 4)/6 mod 9) = 4 + 6 * 2 = 16
-#
-# Is 16 unique mod 18? Obviously..
-# Is p * (n/p mod q) mod lcm(p, q) unique?
-# We know that (n/p mod q) has unique answers mod (q/gcd(p, q))
-# Therefore we know that p * (n/p mod q) has unique answers mod (p * q / gcd(p,q)) = lcm(p, q)
-congruentToBoth = \m, p, n, q ->
-    dbg
-        { m, p, n, q }
-
-    x <- divMod (n - m) p q |> Result.map
-    m + p * x
-
-expect congruentToBoth 2 3 3 5 == Ok 8
-expect congruentToBoth 4 6 7 9 == Ok 16
-expect congruentToBoth 0 2 1 6 == Err InvalidDivision
-
-# Euclidean mod
+## Computes the Euclidean mod. (Always returns a positive result.)
 modE = \m, n ->
     r = m % n
     if r < 0 then
@@ -165,20 +230,27 @@ modE = \m, n ->
     else
         r
 
+## Computes the least solution `x` to `x * n = m (mod p)`, if any exist.
+divMod : I64, I64, I64 -> Result I64 [InvalidDivision]
 divMod = \m, n, p ->
-    mp = m |> modE p
-    np = n |> modE p
-    (r, _s, t) = xgcd p np
-    tpos = if t < 0 then t + p else t
-    zeroDivN = Num.divTrunc p r
-    expect (np * zeroDivN) % p == 0
-    if mp % r == 0 then
-        answer = ((Num.divTrunc mp r) * tpos) % zeroDivN
-        expect (answer * n) % p == mp
-        Ok answer
+    # First normalize the inputs to be between [0, p)
+    mModP = m |> modE p
+    nModP = n |> modE p
+    # r = _s * p + t * nModP = gcd(p, nModP)
+    (r, _s, t) = xgcd p nModP
+    # If r divides m, n divides m as well and we have a solution.
+    if mModP % r == 0 then
+        # Normalize `t` to be between [0, p)
+        tModP = t |> modE p
+        # We have t * n = r (mod p) and therefore ((m/r) * t) * n = m (mod p)
+        solution = (mModP |> Num.divTrunc r) * tModP
+        # This solution is unique mod p/gcd(p, n)
+        leastSolution = solution % (p |> Num.divTrunc r)
+        expect (leastSolution * n) % p == mModP
+        Ok leastSolution
     else
         dbg
-            "\(Num.toStr mp) / \(Num.toStr np) mod \(Num.toStr p) doesn't exist"
+            "\(Num.toStr mModP) / \(Num.toStr nModP) mod \(Num.toStr p) doesn't exist"
 
         Err InvalidDivision
 
@@ -202,6 +274,8 @@ gcd = \a, b ->
 
 lcm = \a, b -> a * b |> Num.divTrunc (gcd a b)
 
+## From a given start node, step once through the list of directions,
+## returning the node reached and the list of indices where an "end node" was passed.
 stepDirections : Input, Str -> (Str, List Nat)
 stepDirections = \{ nodes, directions }, start ->
     (dst, ends) = List.walkWithIndex directions (start, []) \(node, endsFound), dir, i ->
@@ -225,9 +299,9 @@ stepDirections = \{ nodes, directions }, start ->
 
 chaseCycle : Dict Str (Str, List (List Nat)), Input, Str -> Dict Str (Str, List (List Nat))
 chaseCycle = \outcomes, inp, start ->
-    chaseCycleTC : Str, Dict Str Nat, List (List Nat) -> Dict Str (Str, List (List Nat))
-    chaseCycleTC = \node, seen, ends ->
-        nodeBk = node |> Str.concat "bk" # Work around miscompilation
+    chaseCycleTR : Str, Dict Str Nat, List (List Nat) -> Dict Str (Str, List (List Nat))
+    chaseCycleTR = \node, seen, ends ->
+        nodeBk = node |> Str.concat "bk" # Work around miscompilation.. Roc is immature
 
         when Dict.get seen node is
             Ok cycleStart ->
@@ -244,14 +318,15 @@ chaseCycle = \outcomes, inp, start ->
             Err KeyNotFound ->
                 (dst, nodeEnds) =
                     when Dict.get outcomes node is
-                        Ok p -> p
+                        Ok outcome -> outcome
                         Err KeyNotFound ->
-                            p = stepDirections inp node
-                            (p.0, [p.1])
+                            outcome = stepDirections inp node
+                            (outcome.0, [outcome.1])
 
                 nodeRestore = nodeBk |> Str.replaceFirst "bk" ""
-                chaseCycleTC dst (Dict.insert seen nodeRestore (List.len ends)) (List.concat ends nodeEnds)
-    chaseCycleTC start (Dict.empty {}) []
+                # `nodeRestore` should equal `node` but `node` somehow changes value due to a miscompilation
+                chaseCycleTR dst (Dict.insert seen nodeRestore (List.len ends)) (List.concat ends nodeEnds)
+    chaseCycleTR start (Dict.empty {}) []
 
 dictArbitrary = \dict ->
     Dict.walkUntil dict (Err Empty) \_, k, v -> Break (Ok (k, v))
@@ -368,53 +443,7 @@ part2 = \{ directions, nodes } ->
             |> Num.toNat
             |> Num.add (uniformPreLen * directionsLen)
 
-example1 =
-    """
-    RL
-
-    AAA = (BBB, CCC)
-    BBB = (DDD, EEE)
-    CCC = (ZZZ, GGG)
-    DDD = (DDD, DDD)
-    EEE = (EEE, EEE)
-    GGG = (GGG, GGG)
-    ZZZ = (ZZZ, ZZZ)
-    """
-
-example2 =
-    """
-    LLR
-
-    AAA = (BBB, BBB)
-    BBB = (AAA, ZZZ)
-    ZZZ = (ZZZ, ZZZ)
-    """
-
-expect
-    answer = part1 (parse example1)
-    answer == 2
-
-expect
-    answer = part1 (parse example2)
-    answer == 6
-
-example3 =
-    """
-    LR
-
-    11A = (11B, XXX)
-    11B = (XXX, 11Z)
-    11Z = (11B, XXX)
-    22A = (22B, XXX)
-    22B = (22C, 22C)
-    22C = (22Z, 22Z)
-    22Z = (22B, 22B)
-    XXX = (XXX, XXX)
-    """
-
-expect
-    answer = part2 (parse example3)
-    answer == 6
+# Additional tests
 
 example4 =
     """
@@ -482,11 +511,33 @@ expect
     answer = part2 (parse example6)
     answer == 5
 
-main : Task {} I32
-main =
-    {} <- Stdout.line "Part 1: \(Num.toStr (part1 (parse input)))" |> Task.await
-    Stdout.line "Part 2: \(Num.toStr (part2 (parse input)))"
+# Helper functions
 
+## Compute the intersection of two sets represented as sorted lists in linear time
+intersectionSorted : List I64, List I64 -> List I64
+intersectionSorted = \xs, ys ->
+    intersectionSortedTR xs ys []
+intersectionSortedTR = \xs, ys, acc ->
+    when (xs, ys) is
+        ([], _) | (_, []) -> acc
+        ([x, .. as xs2], [y, .. as ys2]) ->
+            when Num.compare x y is
+                EQ -> intersectionSortedTR xs2 ys2 (List.append acc x)
+                LT -> intersectionSortedTR xs2 ys acc
+                GT -> intersectionSortedTR xs ys2 acc
+
+        _ -> crash "unreachable"
+
+## Apply a partial map to the Cartesian product of two sets
+filterMapPairs : Set a, Set a, (a, a -> Result b *) -> Set b
+filterMapPairs = \xs, ys, f ->
+    x <- Set.joinMap xs
+    y <- Set.joinMap ys
+    when f x y is
+        Ok v -> Set.single v
+        Err _ -> Set.empty {}
+
+## Unwrap a `Result`, crashing in the error case
 orCrash : Result v e -> v where e implements Inspect
 orCrash = \r ->
     when r is
