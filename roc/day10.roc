@@ -1,12 +1,12 @@
 app "day10"
-    packages { pf: "https://github.com/roc-lang/basic-cli/releases/download/0.7.0/bkGby8jb0tmZYsy2hg1E_B2QrCgcSTxdUlHtETwm5m4.tar.br" }
+    packages { pf: "https://github.com/roc-lang/basic-cli/releases/download/0.8.1/x8URkvfyi9I0QhmVG98roKBUs_AZRkLFwFJVJ3942YA.tar.br" }
     imports [pf.Stdout, pf.Task.{ Task }, "../inputs/day10.txt" as input : Str]
     provides [main] to pf
 
 Tile : [NS, EW, NE, NW, SW, SE, Ground, Animal]
 Direction : [N, S, E, W]
 Input : List (List Tile)
-Point : (Nat, Nat)
+Point : (U64, U64)
 
 parse : Str -> Input
 parse = \inp ->
@@ -55,7 +55,7 @@ find = \grid, val ->
     (y, (x, IsNeedle)) <- Result.map res
     (x, y)
 
-findFirstOk : List a, (a -> Result b *) -> Result (Nat, b) [NotFound]
+findFirstOk : List a, (a -> Result b *) -> Result (U64, b) [NotFound]
 findFirstOk = \l, f ->
     (pos, res) = List.walkUntil l (0, Err NotFound) \(i, _), elem ->
         when f elem is
@@ -101,7 +101,7 @@ walk = \grid, point, direction ->
         Animal -> Ok path # We got back to the start!
         _ -> Err DeadEnd
 
-part1 : Input -> Nat
+part1 : Input -> U64
 part1 = \grid ->
     animalPos = find grid Animal |> orCrash
     (_, path) =
@@ -122,7 +122,7 @@ hasSouthEdge = \tile ->
         NE | NW | EW | Ground -> Bool.false
         Animal -> crash "expected animal to be replaced with pipe"
 
-rowCount : List Tile, (Nat -> Bool) -> Nat
+rowCount : List Tile, (U64 -> Bool) -> U64
 rowCount = \row, inPath ->
     (total, _) = List.walkWithIndex row (0, 0) \(count, numSouthEdges), tile, x ->
         newCount =
@@ -139,7 +139,7 @@ rowCount = \row, inPath ->
         (newCount, newNumSouthEdges)
     total
 
-part2 : Input -> Nat
+part2 : Input -> U64
 part2 = \grid ->
     animalPos = find grid Animal |> orCrash
     (_, path) =

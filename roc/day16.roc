@@ -1,6 +1,6 @@
 app "day16"
     packages {
-        pf: "https://github.com/roc-lang/basic-cli/releases/download/0.7.0/bkGby8jb0tmZYsy2hg1E_B2QrCgcSTxdUlHtETwm5m4.tar.br",
+        pf: "https://github.com/roc-lang/basic-cli/releases/download/0.8.1/x8URkvfyi9I0QhmVG98roKBUs_AZRkLFwFJVJ3942YA.tar.br",
         array2d: "https://github.com/mulias/roc-array2d/releases/download/v0.1.1/gvYudeXPZL33PDh5jRxXOPbeaQV5kLZAsgecc68HBOA.tar.br",
     }
     imports [array2d.Array2D.{ Array2D }, pf.Stdout, pf.Task.{ Task }, "../inputs/day16.txt" as input : Str]
@@ -75,7 +75,7 @@ step = \{ x, y }, direction ->
         Left -> { x, y: y |> Num.subWrap 1 }
         Right -> { x, y: y + 1 }
 
-part1 : Grid -> Nat
+part1 : Grid -> U64
 part1 = \grid ->
     raycast (Set.empty {}) grid { x: 0, y: 0 } Right
     |> Set.map \(coords, _) -> coords
@@ -94,7 +94,7 @@ part1 = \grid ->
         path
     |> Set.len
 
-part2 : Grid -> Nat
+part2 : Grid -> U64
 part2 = \x ->
     crash "todo"
 

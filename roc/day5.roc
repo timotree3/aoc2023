@@ -1,5 +1,5 @@
 app "day5"
-    packages { pf: "https://github.com/roc-lang/basic-cli/releases/download/0.7.0/bkGby8jb0tmZYsy2hg1E_B2QrCgcSTxdUlHtETwm5m4.tar.br" }
+    packages { pf: "https://github.com/roc-lang/basic-cli/releases/download/0.8.1/x8URkvfyi9I0QhmVG98roKBUs_AZRkLFwFJVJ3942YA.tar.br" }
     imports [pf.Stdout, pf.Task.{ Task }, "../inputs/day5.txt" as input : Str]
     provides [main] to pf
 
@@ -69,7 +69,7 @@ sortByKey = \l, key -> List.sortWith l \a, b -> cmpNum (key a) (key b)
 #
 # In the special case where `cmp = \elem -> if elem < x then LT else GE`, we have
 # `xs[i - 1] < x && x <= xs[i]`
-binarySearchWith : List a, (a -> [LT, GE]) -> Nat
+binarySearchWith : List a, (a -> [LT, GE]) -> U64
 binarySearchWith = \list, cmp ->
     go = \sublist, offset ->
         len = List.len sublist
@@ -105,7 +105,7 @@ binarySearchPostcondition = \xs, i, cmp ->
     right = List.get xs i |> okImplies \x -> cmp x == GE
     left && right
 
-binarySearchByKey : List a, Num b, (a -> Num b) -> Nat
+binarySearchByKey : List a, Num b, (a -> Num b) -> U64
 binarySearchByKey = \list, val, key ->
     binarySearchWith list \elem -> if key elem < val then LT else GE
 

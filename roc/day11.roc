@@ -1,11 +1,11 @@
 app "day11"
-    packages { pf: "https://github.com/roc-lang/basic-cli/releases/download/0.7.0/bkGby8jb0tmZYsy2hg1E_B2QrCgcSTxdUlHtETwm5m4.tar.br" }
+    packages { pf: "https://github.com/roc-lang/basic-cli/releases/download/0.8.1/x8URkvfyi9I0QhmVG98roKBUs_AZRkLFwFJVJ3942YA.tar.br" }
     imports [pf.Stdout, pf.Task.{ Task }, "../inputs/day11.txt" as input : Str]
     provides [main] to pf
 
 Tile : [Empty, Galaxy Point]
 Input : List (List Tile)
-Point : (Nat, Nat)
+Point : (U64, U64)
 
 parse : Str -> Input
 parse = \inp ->
@@ -67,7 +67,7 @@ expandEmptyColumns = \grid, expandFactor ->
 manhattanDistance = \(x1, y1), (x2, y2) ->
     Num.absDiff x1 x2 + Num.absDiff y1 y2
 
-solve : Input, Nat -> Nat
+solve : Input, U64 -> U64
 solve = \grid, expandFactor ->
     galaxies =
         grid
@@ -88,11 +88,11 @@ solve = \grid, expandFactor ->
     |> List.sum
     |> Num.divTrunc 2
 
-part1 : Input -> Nat
+part1 : Input -> U64
 part1 = \grid ->
     solve grid 2
 
-part2 : Input -> Nat
+part2 : Input -> U64
 part2 = \grid ->
     solve grid 1_000_000
 

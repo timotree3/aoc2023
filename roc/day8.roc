@@ -1,6 +1,6 @@
 ## Solution to both parts of https://adventofcode.com/2023/day/8
 app "day8"
-    packages { pf: "https://github.com/roc-lang/basic-cli/releases/download/0.7.0/bkGby8jb0tmZYsy2hg1E_B2QrCgcSTxdUlHtETwm5m4.tar.br" }
+    packages { pf: "https://github.com/roc-lang/basic-cli/releases/download/0.8.1/x8URkvfyi9I0QhmVG98roKBUs_AZRkLFwFJVJ3942YA.tar.br" }
     imports [pf.Stdout, pf.Task.{ Task }, "../inputs/day8.txt" as input : Str]
     provides [main] to pf
 
@@ -86,7 +86,7 @@ expect
     # L to BBB, L to AAA, R to BBB, L to AAA, L to BBB, R to ZZZ
     answer == 6
 
-part1 : Input -> Nat
+part1 : Input -> U64
 part1 = \{ directions, nodes } ->
     walk startNode directions nodes 0
 
@@ -280,7 +280,7 @@ lcm = \a, b -> a * b |> Num.divTrunc (gcd a b)
 ##
 ## This function allows us to interpret the input as a graph where
 ## each node has exactly one out-edge and the edges are labelled by these index lists.
-stepDirections : Input, Node -> (Node, List Nat)
+stepDirections : Input, Node -> (Node, List U64)
 stepDirections = \{ nodes, directions }, start ->
     (dst, ends) = List.walkWithIndex directions (start, []) \(node, endsFound), dir, i ->
 
@@ -301,12 +301,12 @@ stepDirections = \{ nodes, directions }, start ->
 
     (dst, ends)
 
-endIndicesFromPath : List (List Nat), Nat -> List I64
+endIndicesFromPath : List (List U64), U64 -> List I64
 endIndicesFromPath = \path, stepSize ->
     out, ends, stepNum <- List.walkWithIndex path []
     List.concat out (List.map ends \i -> i + stepNum * stepSize |> Num.toI64)
 
-CycleDescriptor : { preCyclePath : List (List Nat), cyclePath : List (List Nat) }
+CycleDescriptor : { preCyclePath : List (List U64), cyclePath : List (List U64) }
 
 chaseCycles : List Node, Input -> List CycleDescriptor
 chaseCycles = \startNodes, inp ->
@@ -336,7 +336,7 @@ NextNodeCache edgeLabel : Dict Node (Node, List edgeLabel)
 ##
 ## The destiny of a node which is a member of a cycle is itself.
 ## Therefore, the cache has a maximum cycle length of 1.
-computeDestinies : NextNodeCache (List Nat), Input, Set Node -> NextNodeCache (List Nat)
+computeDestinies : NextNodeCache (List U64), Input, Set Node -> NextNodeCache (List U64)
 computeDestinies = \cache, inp, todo ->
     when setArbitrary todo is
         Err Empty -> cache
@@ -350,7 +350,7 @@ computeDestinies = \cache, inp, todo ->
                 |> setRemoveAllDict updates
             computeDestinies newCache inp newTodo
 
-cachedNextFrom : NextNodeCache (List Nat), Input -> (Node -> (Node, List (List Nat)))
+cachedNextFrom : NextNodeCache (List U64), Input -> (Node -> (Node, List (List U64)))
 cachedNextFrom = \cache, inp ->
     \node ->
         when Dict.get cache node is
@@ -406,7 +406,7 @@ alignCycles = \cycleDescrs ->
 
 
 ## Returns a new cycle descriptor with `preCyclePath` extended to length `desiredStart`.
-advanceCycle : CycleDescriptor, Nat -> CycleDescriptor
+advanceCycle : CycleDescriptor, U64 -> CycleDescriptor
 advanceCycle = \{ preCyclePath, cyclePath }, desiredStart ->
     growth = desiredStart - List.len preCyclePath
     cycleLen = List.len cyclePath
@@ -423,7 +423,7 @@ advanceCycle = \{ preCyclePath, cyclePath }, desiredStart ->
         |> List.concat cyclePrefix,
     }
 
-part2 : Input -> Nat
+part2 : Input -> U64
 part2 = \{ directions, nodes } ->
     startNodes =
         nodes
@@ -448,7 +448,7 @@ part2 = \{ directions, nodes } ->
         |> listReduce intersectionSorted
         |> orCrash
     when preCycleWins is
-        [win, ..] -> Num.toNat win
+        [win, ..] -> Num.toU64 win
         [] ->
             congruenceSets =
                 cycleDescrs
@@ -469,7 +469,7 @@ part2 = \{ directions, nodes } ->
             |> Set.toList
             |> List.min
             |> orCrash
-            |> Num.toNat
+            |> Num.toU64
             |> Num.add (cycleStart * directionsLen)
 
 # Additional tests

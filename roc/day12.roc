@@ -1,12 +1,12 @@
 app "day12"
-    packages { pf: "https://github.com/roc-lang/basic-cli/releases/download/0.7.0/bkGby8jb0tmZYsy2hg1E_B2QrCgcSTxdUlHtETwm5m4.tar.br" }
+    packages { pf: "https://github.com/roc-lang/basic-cli/releases/download/0.8.1/x8URkvfyi9I0QhmVG98roKBUs_AZRkLFwFJVJ3942YA.tar.br" }
     imports [pf.Stdout, pf.Task.{ Task }, "../inputs/day12.txt" as input : Str]
     provides [main] to pf
 
 Input : List Record
 Record : { pattern : List Spring, runs : List Run }
 Spring : [Damaged, Operational, Unknown]
-Run : Nat
+Run : U64
 
 parse : Str -> Input
 parse = \inp ->
@@ -36,7 +36,7 @@ parseSpring = \b ->
 parseRuns = \runs ->
     runs
     |> Str.split ","
-    |> List.mapTry Str.toNat
+    |> List.mapTry Str.toU64
     |> orCrash
 
 # printPat = \pat ->
@@ -98,7 +98,7 @@ parseRuns = \runs ->
 #         [Operational, ..] | [Unknown, ..] -> Bool.true
 #         [] | [Damaged, ..] -> Bool.false
 
-# couldStartWithNDamaged : List Spring, Nat -> Bool
+# couldStartWithNDamaged : List Spring, U64 -> Bool
 # couldStartWithNDamaged = \pattern, n ->
 #     when pattern is
 #         [] | [Operational, ..] | [Unknown, ..] if n == 0 -> Bool.true
@@ -130,7 +130,7 @@ parseRuns = \runs ->
 #     expect matchesPat && solnRuns == runs
 #     matchesPat && solnRuns == runs
 
-part1 : Input -> Nat
+part1 : Input -> U64
 part1 = \records ->
     records
     |> List.map \{ pattern, runs } ->
@@ -150,9 +150,9 @@ part1 = \records ->
 
 ## A contiguous pattern of `Unknown` and `Damaged`
 Zone : List ZoneSegment
-ZoneSegment : { numDamagedAfter : Nat, numUnknowns : Nat }
+ZoneSegment : { numDamagedAfter : U64, numUnknowns : U64 }
 
-countWhile : List elem, (elem -> Bool) -> Nat
+countWhile : List elem, (elem -> Bool) -> U64
 countWhile = \list, pred ->
     list
     |> List.findFirstIndex (\elem -> !(pred elem))
@@ -189,7 +189,7 @@ collectSums = \entries ->
                 Missing if val == 0 -> Missing
                 Missing -> Present val
 
-step : Dict Nat Nat, List Run, Zone -> Dict Nat Nat
+step : Dict U64 U64, List Run, Zone -> Dict U64 U64
 step = \prevResults, runs, zone ->
     results =
         prevResults
@@ -206,7 +206,7 @@ step = \prevResults, runs, zone ->
 
     results
 
-placeRunsInZones : List Run, List Zone -> Nat
+placeRunsInZones : List Run, List Zone -> U64
 placeRunsInZones = \runs, zones ->
     zones
     |> List.walk (Dict.single 0 1) \prevResults, zone ->
@@ -214,8 +214,8 @@ placeRunsInZones = \runs, zones ->
     |> Dict.get (List.len runs)
     |> Result.withDefault 0
 
-Placement : { runsPlaced : Nat, damageOverflow : Nat, padding : Nat }
-addSegmentToPlacement : Placement, List Run, ZoneSegment -> List (Placement, Nat)
+Placement : { runsPlaced : U64, damageOverflow : U64, padding : U64 }
+addSegmentToPlacement : Placement, List Run, ZoneSegment -> List (Placement, U64)
 addSegmentToPlacement = \{ runsPlaced, damageOverflow, padding }, runs, segment ->
     when overflowIntoSegment segment damageOverflow padding is
         Adjusted adjustedSegment ->
@@ -242,7 +242,7 @@ addSegmentToPlacement = \{ runsPlaced, damageOverflow, padding }, runs, segment 
 
         Incompatible -> []
 
-overflowIntoSegment : ZoneSegment, Nat, Nat -> [Adjusted ZoneSegment, Cascaded (Nat, Nat), Incompatible]
+overflowIntoSegment : ZoneSegment, U64, U64 -> [Adjusted ZoneSegment, Cascaded (U64, U64), Incompatible]
 overflowIntoSegment = \{ numUnknowns, numDamagedAfter }, damageOverflow, padding ->
     newUnknowns = numUnknowns |> Num.subSaturated (damageOverflow + padding)
     newDamagedAfter = numDamagedAfter |> Num.subSaturated (damageOverflow |> Num.subSaturated numUnknowns)
@@ -262,7 +262,7 @@ overflowIntoSegment = \{ numUnknowns, numDamagedAfter }, damageOverflow, padding
         # Padding is being put where damage is required
         Incompatible
 
-stepSegment : Dict Placement Nat, List Run, ZoneSegment -> Dict Placement Nat
+stepSegment : Dict Placement U64, List Run, ZoneSegment -> Dict Placement U64
 stepSegment = \prevResults, runs, segment ->
     results =
         prevResults
@@ -278,7 +278,7 @@ stepSegment = \prevResults, runs, segment ->
 
     results
 
-placeRunsInZone : List Run, Zone -> Nat
+placeRunsInZone : List Run, Zone -> U64
 placeRunsInZone = \runs, zone ->
     dbg
         { runs, zone }
@@ -333,7 +333,7 @@ splits = \list ->
     List.range { start: At 0, end: At (List.len list) }
     |> List.map \i -> List.split list i
 
-possibleRunsSplits : List Run -> List { before : List Run, runHead : Nat, runTail : Nat, after : List Run }
+possibleRunsSplits : List Run -> List { before : List Run, runHead : U64, runTail : U64, after : List Run }
 possibleRunsSplits = \runs ->
     List.mapWithIndex runs \run, i ->
         { before, others } = List.split runs i
@@ -344,7 +344,7 @@ possibleRunsSplits = \runs ->
             { before, runHead, runTail, after }
     |> List.join
 
-# subtractBeforeZone : Zone, Nat -> Result Zone [Underflow]
+# subtractBeforeZone : Zone, U64 -> Result Zone [Underflow]
 # subtractBeforeZone = \zone, toSubtractAtStart ->
 #     if toSubtractAtStart == 0 then
 #         Ok zone
@@ -362,7 +362,7 @@ possibleRunsSplits = \runs ->
 #                 else
 #                     subtractBeforeZone nextSegments toSubtractNext
 
-placeRunsInSegment : List Run, Run, ZoneSegment -> Nat
+placeRunsInSegment : List Run, Run, ZoneSegment -> U64
 placeRunsInSegment = \runs, lastRun, { numUnknowns, numDamagedAfter } ->
     if numDamagedAfter == 0 then
         placeRunsInUnknowns (List.append runs lastRun) numUnknowns
@@ -413,7 +413,7 @@ placeRunsInUnknowns = \runs, numUnknowns ->
 
 ## n choose k = n!/k!(n-k)!
 # https://stackoverflow.com/a/15302448/7246614
-choose : Nat, Nat -> Nat
+choose : U64, U64 -> U64
 choose = \n, k ->
     if n < k then
         0
@@ -446,7 +446,7 @@ printZone = \zone ->
         "?" |> Str.repeat numUnknowns |> Str.concat ("#" |> Str.repeat numDamagedAfter)
     |> Str.joinWith ""
 
-part2 : Input -> Nat
+part2 : Input -> U64
 part2 = \records ->
     records
     |> List.map embiggen

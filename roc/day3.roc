@@ -1,11 +1,11 @@
 app "day3"
-    packages { pf: "https://github.com/roc-lang/basic-cli/releases/download/0.7.0/bkGby8jb0tmZYsy2hg1E_B2QrCgcSTxdUlHtETwm5m4.tar.br" }
+    packages { pf: "https://github.com/roc-lang/basic-cli/releases/download/0.8.1/x8URkvfyi9I0QhmVG98roKBUs_AZRkLFwFJVJ3942YA.tar.br" }
     imports [pf.Stdout, pf.Task.{ Task }, "../inputs/day3.txt" as input : Str]
     provides [main] to pf
 
 Grid : List (List GridCell)
 GridCell : [Digit, Star { count : U8, power : U64 }, Symbol, Dot]
-Numeral : { x : Nat, y : Nat, len : Nat, val : U64 }
+Numeral : { x : U64, y : U64, len : U64, val : U64 }
 
 parseNums : Str -> List Numeral
 parseNums = \inp -> inp

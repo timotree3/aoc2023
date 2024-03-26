@@ -1,5 +1,5 @@
 app "day13"
-    packages { pf: "https://github.com/roc-lang/basic-cli/releases/download/0.7.0/bkGby8jb0tmZYsy2hg1E_B2QrCgcSTxdUlHtETwm5m4.tar.br" }
+    packages { pf: "https://github.com/roc-lang/basic-cli/releases/download/0.8.1/x8URkvfyi9I0QhmVG98roKBUs_AZRkLFwFJVJ3942YA.tar.br" }
     imports [pf.Stdout, pf.Task.{ Task }, "../inputs/day13.txt" as input : Str]
     provides [main] to pf
 
@@ -65,14 +65,14 @@ scoreReflection = \reflection ->
         Horizontal row -> 100 * row
         Vertical column -> column
 
-part1 : Input -> Nat
+part1 : Input -> U64
 part1 = \grids ->
     grids
     |> List.map \grid -> findReflectionWithError grid 0
     |> List.map scoreReflection
     |> List.sum
 
-part2 : Input -> Nat
+part2 : Input -> U64
 part2 = \grids ->
     grids
     |> List.map \grid -> findReflectionWithError grid 1

@@ -1,5 +1,5 @@
 app "day14"
-    packages { pf: "https://github.com/roc-lang/basic-cli/releases/download/0.7.0/bkGby8jb0tmZYsy2hg1E_B2QrCgcSTxdUlHtETwm5m4.tar.br" }
+    packages { pf: "https://github.com/roc-lang/basic-cli/releases/download/0.8.1/x8URkvfyi9I0QhmVG98roKBUs_AZRkLFwFJVJ3942YA.tar.br" }
     imports [pf.Stdout, pf.Task.{ Task }, "../inputs/day14.txt" as input : Str]
     provides [main] to pf
 
@@ -30,7 +30,7 @@ scoreColumn = \column ->
             0
     |> List.sum
 
-part1 : Grid -> Nat
+part1 : Grid -> U64
 part1 = \grid ->
     grid
     |> columns
@@ -56,7 +56,7 @@ spinCycle = \grid ->
 
 ## `iterateWithPeriodDetection x f n` is equal to `iterate x f n`
 ## but uses a shortcut to fast-forward if a cycle is detected.
-iterateWithPeriodDetection : state, (state -> state), Nat -> state where state implements Eq
+iterateWithPeriodDetection : state, (state -> state), U64 -> state where state implements Eq
 iterateWithPeriodDetection = \start, f, fuel1 ->
     (periodicPoint, fuel2) = findPeriodicPoint start f fuel1
     if fuel2 == 0 then
@@ -86,7 +86,7 @@ iterate = \x, f, n ->
 ## we return the final state reached and remaining fuel `0`.
 ##
 ## Uses constant space via [the tortoise and hare algorithm](https://en.wikipedia.org/wiki/Tortoise_and_hare_algorithm).
-findPeriodicPoint : state, (state -> state), Nat -> (state, Nat) where state implements Eq
+findPeriodicPoint : state, (state -> state), U64 -> (state, U64) where state implements Eq
 findPeriodicPoint = \start, next, fuel ->
     tortoiseHare start (next start) next fuel
 tortoiseHare = \tortoise, hare, next, fuel ->
@@ -101,7 +101,7 @@ iterateUntil = \start, next, stop, fuel ->
     else
         iterateUntil (next start) next stop (fuel - 1)
 
-part2 : Grid -> Nat
+part2 : Grid -> U64
 part2 = \grid ->
     grid
     |> iterateWithPeriodDetection spinCycle 1_000_000_000
